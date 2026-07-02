@@ -10,6 +10,10 @@ export function getPool(): Pool {
       connectionString: getEnv().DATABASE_URL,
       max: 10,
     });
+
+    pool.on("error", (error) => {
+      console.error("Postgres pool error", error instanceof Error ? error.message : error);
+    });
   }
 
   return pool;
