@@ -21,5 +21,7 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/src/db/migrations ./src/db/migrations
+COPY --from=builder /app/scripts/start-production.sh ./scripts/start-production.sh
+RUN chmod +x ./scripts/start-production.sh
 EXPOSE 3000
-CMD ["pnpm", "start:web"]
+CMD ["./scripts/start-production.sh"]
