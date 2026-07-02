@@ -15,4 +15,6 @@ export function getPool(): Pool {
   return pool;
 }
 
-export const db = drizzle(getPool());
+export function getDb() {
+  return drizzle(getPool());
+}
