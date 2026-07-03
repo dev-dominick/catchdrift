@@ -1,24 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runDemoReplay } from "@/demo/scenario";
-import { withAdvisoryLock } from "@/db/sql";
-
-const DEMO_LOCK_ID = 4242001;
+import {
+  attachDemoSessionCookie,
+  getOrCreateDemoSession,
+  startReplayForSession,
+} from "@/demo/runtime";
 
 export async function POST(request: NextRequest) {
-  void request;
+  const { sessionId } = getOrCreateDemoSession(request);
+  const started = await startReplayForSession(sessionId);
 
-  const lock = await withAdvisoryLock(DEMO_LOCK_ID, async () =>
-    runDemoReplay({
-      instant: true,
-    }),
-  );
-
-  if (!lock.acquired) {
-    return NextResponse.json(
-      { error: "Demo replay already running. Please retry shortly." },
-      { status: 429 },
+  if (!started.ok) {
+    const response = NextResponse.json(
+      {
+        error: {
+          code: started.code,
+          message: started.message,
+        },
+      },
+      { status: started.status },
     );
+    return attachDemoSessionCookie(response, sessionId);
   }
 
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true, runId: started.runId }, { status: 202 });
+  return attachDemoSessionCookie(response, sessionId);
 }

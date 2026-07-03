@@ -8,6 +8,13 @@
       "when": 1783024995829,
       "tag": "0000_wooden_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783104000000,
+      "tag": "0001_demo_runs",
+      "breakpoints": true
     }
   ]
 }

@@ -90,9 +90,11 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   await resetDemoWorkspace();
   await out("✓ Demo workspace reset");
+  await timelinePause(options?.instant, 1000);
 
   const { campaignId, workspaceId } = await ensureDemoWorkspaceAndCampaign();
   await out("✓ Campaign mapping created");
+  await timelinePause(options?.instant, 800);
 
   const start = subMinutes(new Date(), 95);
   let latestIncidentId: string | null = null;
@@ -124,6 +126,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   await out("✓ 12 healthy intervals ingested");
   await out("✓ Healthy evaluations completed without an incident");
+  await timelinePause(options?.instant, 1800);
 
   const deploymentAt = addMinutes(start, 60);
   await ingestDeploymentEvent({
@@ -157,6 +160,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   );
 
   await out("✓ Deployment v42 recorded");
+  await timelinePause(options?.instant, 1800);
 
   const firstDegradedStart = addMinutes(start, 60);
   await ingestInterval(13, firstDegradedStart, DEGRADED);
@@ -178,6 +182,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   );
 
   await out("✓ First degraded interval matured — incident withheld");
+  await timelinePause(options?.instant, 1800);
 
   const secondDegradedStart = addMinutes(start, 65);
   await ingestInterval(14, secondDegradedStart, DEGRADED);
@@ -199,6 +204,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   );
 
   await out("✓ Second degraded interval matured — incident withheld");
+  await timelinePause(options?.instant, 1800);
 
   const thirdDegradedStart = addMinutes(start, 70);
   await ingestInterval(15, thirdDegradedStart, DEGRADED);
@@ -234,6 +240,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await out("✓ Deployment v42 correlated");
   await out("✓ Exposure calculated at $230-$310/hour");
   await out("✓ Incident persisted with versioned evidence");
+  await timelinePause(options?.instant, 2000);
 
   const detectedIncident = await queryOne<{ id: string }>(
     `select id
@@ -266,6 +273,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   });
   await out("✓ Deployment v43 recorded");
   await drainReplayQueue(workspaceId);
+  await timelinePause(options?.instant, 1800);
 
   for (let i = 0; i < 3; i += 1) {
     await ingestInterval(16 + i, addMinutes(start, 75 + i * 5), RECOVERY);
@@ -341,7 +349,7 @@ async function waitForCheckpoint(
   check: () => Promise<boolean>,
   instantMode = false,
 ): Promise<void> {
-  const timeoutMs = instantMode ? 30_000 : 90_000;
+  const timeoutMs = instantMode ? 20_000 : 120_000;
   const intervalMs = instantMode ? 100 : 500;
   const startedAt = Date.now();
 
@@ -353,5 +361,13 @@ async function waitForCheckpoint(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
-  throw new Error(`Timeout waiting for checkpoint: ${label}. Ensure worker process is running.`);
+  throw new Error(`Timeout waiting for checkpoint: ${label}.`);
+}
+
+async function timelinePause(instantMode: boolean | undefined, ms: number): Promise<void> {
+  if (instantMode) {
+    return;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

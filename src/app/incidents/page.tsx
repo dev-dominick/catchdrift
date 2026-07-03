@@ -11,12 +11,12 @@ export default async function IncidentsPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Exception Queue</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Operational Incident Inbox</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Actionable incidents are shown first. Healthy campaigns are listed separately.
+          Incidents are grouped by active, investigating, recovered, and resolved states.
         </p>
         <Link href="/" className="mt-3 inline-block text-sm font-medium text-slate-800 underline">
-          Back to guided 90-second protection demo
+          Back to live replay
         </Link>
       </header>
 

@@ -19,13 +19,14 @@ import { calculateExposureRange, dollarsToMinorUnits } from "@/domain/exposure";
 import { scoreDeploymentCandidate, type DeploymentChange } from "@/domain/correlation";
 import { evaluateTrackingIntegrityRule } from "@/domain/tracking-rule";
 import { deriveSeverity } from "@/domain/severity";
+import { deriveSourceFreshness } from "@/domain/freshness";
 import type { DeploymentIngestPayload, MetricIngestPayload } from "@/ingestion/contracts";
 
 type WorkspaceRecord = { id: string };
 type CampaignRecord = { id: string; workspace_id: string; currency: string; name: string };
 
 type IngestResult = {
-  status: "inserted" | "duplicate" | "revised";
+  status: "inserted" | "duplicate" | "revised" | "conflict" | "stale_revision";
   campaignId: string;
   workspaceId: string;
 };
@@ -196,6 +197,14 @@ export async function ingestMetricObservation(payload: MetricIngestPayload): Pro
   );
 
   if (existing) {
+    if (existing.payload_hash !== payloadHash) {
+      return {
+        status: "conflict",
+        workspaceId: campaign.workspace_id,
+        campaignId: campaign.id,
+      };
+    }
+
     return {
       status: "duplicate",
       workspaceId: campaign.workspace_id,
@@ -209,6 +218,15 @@ export async function ingestMetricObservation(payload: MetricIngestPayload): Pro
      where workspace_id = $1 and source = $2 and source_record_id = $3`,
     [campaign.workspace_id, payload.source, payload.sourceRecordId],
   );
+
+  const highestRevision = Number(priorRevision?.max_revision ?? 0);
+  if (highestRevision > 0 && payload.revision < highestRevision) {
+    return {
+      status: "stale_revision",
+      workspaceId: campaign.workspace_id,
+      campaignId: campaign.id,
+    };
+  }
 
   await query(
     `insert into metric_observations (
@@ -256,7 +274,7 @@ export async function ingestMetricObservation(payload: MetricIngestPayload): Pro
   });
 
   return {
-    status: priorRevision?.max_revision ? "revised" : "inserted",
+    status: highestRevision > 0 ? "revised" : "inserted",
     workspaceId: campaign.workspace_id,
     campaignId: campaign.id,
   };
@@ -277,6 +295,24 @@ export async function ingestDeploymentEvent(payload: DeploymentIngestPayload): P
   }
 
   if (existing && existing.payload_hash !== payloadHash) {
+    const existingDeployment = await queryOne<{ deployed_at: string }>(
+      `select deployed_at
+       from deployment_events
+       where id = $1`,
+      [existing.id],
+    );
+
+    const existingDeployedAt = existingDeployment ? new Date(existingDeployment.deployed_at).getTime() : null;
+    const incomingDeployedAt = new Date(payload.deployedAt).getTime();
+
+    if (existingDeployedAt != null && incomingDeployedAt < existingDeployedAt) {
+      return { status: "stale_revision", workspaceId: campaign.workspace_id, campaignId: campaign.id };
+    }
+
+    if (existingDeployedAt != null && incomingDeployedAt === existingDeployedAt) {
+      return { status: "conflict", workspaceId: campaign.workspace_id, campaignId: campaign.id };
+    }
+
     await query(
       `update deployment_events
        set version = $1,
@@ -373,8 +409,10 @@ async function computeFreshness(workspaceId: string): Promise<{ healthy: boolean
     source: string;
     expected_delay_minutes: number;
     last_successful_event_at: string | null;
+    latest_mature_interval_end: string | null;
+    connector_state: "healthy" | "stale" | "failed";
   }>(
-    `select source, expected_delay_minutes, last_successful_event_at
+    `select source, expected_delay_minutes, last_successful_event_at, latest_mature_interval_end, connector_state
      from source_health
      where workspace_id = $1 and source = any($2::text[])`,
     [workspaceId, REQUIRED_SOURCES],
@@ -386,14 +424,25 @@ async function computeFreshness(workspaceId: string): Promise<{ healthy: boolean
 
   for (const source of REQUIRED_SOURCES) {
     const record = bySource.get(source);
-    if (!record?.last_successful_event_at) {
-      reasons.push(`${source} source is stale`);
-      continue;
-    }
+    const derived = deriveSourceFreshness(
+      {
+        source,
+        expectedDelayMinutes: record?.expected_delay_minutes ?? SOURCE_EXPECTED_DELAYS_MINUTES[source] ?? 5,
+        lastSuccessfulEventAt: record?.last_successful_event_at
+          ? new Date(record.last_successful_event_at)
+          : null,
+        latestMatureIntervalEnd: record?.latest_mature_interval_end
+          ? new Date(record.latest_mature_interval_end)
+          : null,
+        connectorState: record?.connector_state ?? "healthy",
+      },
+      now,
+    );
 
-    const age = differenceInMinutes(now, new Date(record.last_successful_event_at));
-    if (age > record.expected_delay_minutes) {
-      reasons.push(`${source} source is stale`);
+    if (derived.suppressesDecisions) {
+      const overdue = derived.overdueMinutes == null ? "" : ` (${derived.overdueMinutes}m overdue)`;
+      reasons.push(`${source} source is ${derived.label.toLowerCase()}${overdue}`);
+      continue;
     }
   }
 
@@ -1033,12 +1082,38 @@ export async function getIncident(incidentId: string) {
   );
 
   const sourceHealth = await query(
-    `select source, freshness_state, expected_delay_minutes, last_successful_event_at, latest_mature_interval_end
+    `select source, freshness_state, expected_delay_minutes, last_successful_event_at, latest_mature_interval_end, connector_state
      from source_health
      where workspace_id = $1
      order by source asc`,
     [incident.workspace_id],
   );
+
+  const now = new Date();
+  const derivedSourceHealth = (sourceHealth as Array<Record<string, unknown>>).map((row) => {
+    const derived = deriveSourceFreshness(
+      {
+        source: String(row.source),
+        expectedDelayMinutes: Number(row.expected_delay_minutes),
+        lastSuccessfulEventAt: row.last_successful_event_at
+          ? new Date(String(row.last_successful_event_at))
+          : null,
+        latestMatureIntervalEnd: row.latest_mature_interval_end
+          ? new Date(String(row.latest_mature_interval_end))
+          : null,
+        connectorState: String(row.connector_state) as "healthy" | "stale" | "failed",
+      },
+      now,
+    );
+
+    return {
+      ...row,
+      derived_freshness_state: derived.state,
+      freshness_label: derived.label,
+      overdue_minutes: derived.overdueMinutes,
+      suppresses_decisions: derived.suppressesDecisions,
+    };
+  });
 
   const deployments = await query(
     `select id, source, external_deployment_id, version, deployed_at, changes_json
@@ -1049,7 +1124,7 @@ export async function getIncident(incidentId: string) {
     [incident.campaign_id],
   );
 
-  return { incident, evidence, events, timeline, sourceHealth, deployments };
+  return { incident, evidence, events, timeline, sourceHealth: derivedSourceHealth, deployments };
 }
 
 export async function updateIncidentStatus(params: {
@@ -1083,7 +1158,7 @@ export async function updateIncidentStatus(params: {
 }
 
 export async function listSourceHealth(workspaceSlug = DEMO_WORKSPACE_SLUG) {
-  return query(
+  const rows = await query(
     `select sh.source, sh.expected_delay_minutes, sh.last_successful_event_at, sh.latest_mature_interval_end, sh.freshness_state, sh.connector_state
      from source_health sh
      join workspaces w on w.id = sh.workspace_id
@@ -1091,4 +1166,30 @@ export async function listSourceHealth(workspaceSlug = DEMO_WORKSPACE_SLUG) {
      order by sh.source asc`,
     [workspaceSlug],
   );
+
+  const now = new Date();
+  return (rows as Array<Record<string, unknown>>).map((row) => {
+    const derived = deriveSourceFreshness(
+      {
+        source: String(row.source),
+        expectedDelayMinutes: Number(row.expected_delay_minutes),
+        lastSuccessfulEventAt: row.last_successful_event_at
+          ? new Date(String(row.last_successful_event_at))
+          : null,
+        latestMatureIntervalEnd: row.latest_mature_interval_end
+          ? new Date(String(row.latest_mature_interval_end))
+          : null,
+        connectorState: String(row.connector_state) as "healthy" | "stale" | "failed",
+      },
+      now,
+    );
+
+    return {
+      ...row,
+      derived_freshness_state: derived.state,
+      freshness_label: derived.label,
+      overdue_minutes: derived.overdueMinutes,
+      suppresses_decisions: derived.suppressesDecisions,
+    };
+  });
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { exposureLabel } from "@/lib/format";
+import { differenceInMinutes } from "date-fns";
 
 type ExceptionItem = {
   id: string;
@@ -21,6 +22,13 @@ const severityClass: Record<string, string> = {
   low: "bg-slate-100 text-slate-700",
 };
 
+const groupOrder: Array<{ key: string; label: string }> = [
+  { key: "detected", label: "Active" },
+  { key: "investigating", label: "Investigating" },
+  { key: "recovered", label: "Recovered" },
+  { key: "resolved", label: "Resolved" },
+];
+
 export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
   if (incidents.length === 0) {
     return (
@@ -40,48 +48,71 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
     );
   }
 
+  const grouped = new Map<string, ExceptionItem[]>();
+  for (const group of groupOrder) {
+    grouped.set(group.key, []);
+  }
+
+  for (const incident of incidents) {
+    const key = incident.status === "acknowledged" ? "investigating" : incident.status;
+    const target = grouped.get(key);
+    if (target) {
+      target.push(incident);
+    }
+  }
+
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <table className="min-w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-          <tr>
-            <th className="px-4 py-3">Severity</th>
-            <th className="px-4 py-3">Campaign</th>
-            <th className="px-4 py-3">Incident</th>
-            <th className="px-4 py-3">Exposure</th>
-            <th className="px-4 py-3">Confidence</th>
-            <th className="px-4 py-3">Detected</th>
-            <th className="px-4 py-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {incidents.map((incident) => (
-            <tr key={incident.id} className="border-t border-slate-100">
-              <td className="px-4 py-3">
-                <span className={`rounded px-2 py-1 text-xs font-semibold ${severityClass[incident.severity]}`}>
-                  {incident.severity}
-                </span>
-              </td>
-              <td className="px-4 py-3 font-medium text-slate-900">{incident.campaign_name}</td>
-              <td className="px-4 py-3">
-                <Link href={`/incidents/${incident.id}`} className="text-slate-800 underline">
-                  {incident.rule_id}@1
-                </Link>
-              </td>
-              <td className="px-4 py-3 font-semibold text-slate-900">
-                {exposureLabel(
-                  incident.exposure_low_minor,
-                  incident.exposure_high_minor,
-                  incident.currency,
-                )}
-              </td>
-              <td className="px-4 py-3 capitalize">{incident.confidence}</td>
-              <td className="px-4 py-3">{new Date(incident.detected_at).toLocaleString()}</td>
-              <td className="px-4 py-3 capitalize">{incident.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-4">
+      {groupOrder.map((group) => {
+        const items = grouped.get(group.key) ?? [];
+
+        return (
+          <section key={group.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">{group.label}</h3>
+              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                {items.length}
+              </span>
+            </div>
+
+            {items.length === 0 ? (
+              <p className="text-sm text-slate-500">No incidents in this state.</p>
+            ) : (
+              <ul className="space-y-3">
+                {items.map((incident) => {
+                  const age = differenceInMinutes(new Date(), new Date(incident.detected_at));
+                  const statusLabel = incident.status === "acknowledged" ? "investigating" : incident.status;
+
+                  return (
+                    <li key={incident.id} className="rounded-lg border border-slate-200 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded px-2 py-1 text-xs font-semibold ${severityClass[incident.severity]}`}>
+                          {incident.severity}
+                        </span>
+                        <span className="text-xs uppercase tracking-wide text-slate-500">{statusLabel}</span>
+                      </div>
+
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{incident.campaign_name}</p>
+                      <p className="mt-1 text-sm text-slate-700">Incident type: {incident.rule_id}@1</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        Exposure rate: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-700">Spend rate: estimated $900/hour</p>
+                      <p className="mt-1 text-sm text-slate-700">Age: {Math.max(0, age)} minutes</p>
+                      <p className="mt-1 text-sm text-slate-700">Correlated change: Deployment v42 (strongest correlation)</p>
+                      <p className="mt-1 text-sm text-slate-700">Next action: validate redirect tracking and attribution payloads.</p>
+
+                      <Link href={`/incidents/${incident.id}`} className="mt-2 inline-block text-sm font-medium text-slate-800 underline">
+                        Open incident
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

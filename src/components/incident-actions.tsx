@@ -11,6 +11,7 @@ const ACTIONS = [
 
 export function IncidentActions({ incidentId }: { incidentId: string }) {
   const [running, setRunning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function triggerAction(action: string) {
     setRunning(action);
@@ -27,11 +28,14 @@ export function IncidentActions({ incidentId }: { incidentId: string }) {
 
   async function replayDemo() {
     setRunning("replay");
+    setError(null);
     const response = await fetch(`/api/incidents/${incidentId}/replay`, {
       method: "POST",
     });
 
-    if (!response.ok) {
+    if (response.status !== 202) {
+      const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setError(body?.error?.message ?? `Replay failed to start (${response.status}).`);
       setRunning(null);
       return;
     }
@@ -61,6 +65,7 @@ export function IncidentActions({ incidentId }: { incidentId: string }) {
       >
         {running === "replay" ? "Replaying..." : "Replay Demo"}
       </button>
+      {error ? <p className="w-full text-sm text-rose-700">{error}</p> : null}
     </div>
   );
 }

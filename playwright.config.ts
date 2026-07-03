@@ -4,12 +4,13 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 180_000,
   retries: 0,
+  workers: 1,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "pnpm dev & pnpm start:worker",
+    command: "pnpm db:migrate && pnpm dev",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
@@ -18,6 +19,10 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 7"] },
     },
   ],
 });

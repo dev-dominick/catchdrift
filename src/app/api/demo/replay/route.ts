@@ -1,50 +1,64 @@
-import { NextRequest } from "next/server";
-import { runDemoReplay } from "@/demo/scenario";
-import { withAdvisoryLock } from "@/db/sql";
-
-const DEMO_LOCK_ID = 4242001;
+import { NextRequest, NextResponse } from "next/server";
+import {
+  attachDemoSessionCookie,
+  getOrCreateDemoSession,
+  startReplayForSession,
+} from "@/demo/runtime";
 
 export async function POST(request: NextRequest) {
-  void request;
+  const { sessionId } = getOrCreateDemoSession(request);
+  const forceFailure =
+    process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("forceFailure") === "1";
+  try {
+    const started = await startReplayForSession(sessionId, { forceFailure });
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
+    if (!started.ok) {
+      const response = NextResponse.json(
+        {
+          error: {
+            code: started.code,
+            message: started.message,
+          },
+        },
+        { status: started.status },
+      );
+      return attachDemoSessionCookie(response, sessionId);
+    }
 
-      try {
-        const lock = await withAdvisoryLock(DEMO_LOCK_ID, async () =>
-          runDemoReplay({
-            onStage: async (line) => {
-              controller.enqueue(encoder.encode(`${line}\n`));
-              await new Promise((resolve) => setTimeout(resolve, 180));
-            },
-          }),
-        );
+    const response = NextResponse.json(
+      {
+        runId: started.runId,
+        status: "accepted",
+        message: "Replay accepted and running asynchronously.",
+      },
+      { status: 202 },
+    );
 
-        if (!lock.acquired) {
-          controller.enqueue(
-            encoder.encode("ERROR: Demo replay already running. Please retry in a moment.\n"),
-          );
-          controller.close();
-          return;
-        }
+    return attachDemoSessionCookie(response, sessionId);
+  } catch {
+    const reference = `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const response = NextResponse.json(
+      {
+        error: {
+          code: "DEMO_REPLAY_START_FAILED",
+          message: `Replay could not be started. Retry with reference ${reference}.`,
+        },
+      },
+      { status: 503 },
+    );
+    return attachDemoSessionCookie(response, sessionId);
+  }
+}
 
-        controller.close();
-      } catch (error) {
-        controller.enqueue(
-          encoder.encode(
-            `ERROR: ${error instanceof Error ? error.message : "Unknown replay error"}\n`,
-          ),
-        );
-        controller.close();
-      }
+export async function GET(request: NextRequest) {
+  const { sessionId } = getOrCreateDemoSession(request);
+  const response = NextResponse.json(
+    {
+      sessionId,
+      ok: true,
     },
-  });
+    { status: 200 },
+  );
 
-  return new Response(stream, {
-    headers: {
-      "content-type": "text/plain; charset=utf-8",
-      "cache-control": "no-store",
-    },
-  });
+  return attachDemoSessionCookie(response, sessionId);
 }

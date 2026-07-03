@@ -24,18 +24,46 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await ingestMetricObservation(parsed.data);
+
+    if (result.status === "conflict") {
+      return NextResponse.json(
+        {
+          error: {
+            code: "INGEST_CONFLICT",
+            message: "Incoming metric payload conflicts with existing revision.",
+          },
+          campaignId: result.campaignId,
+          workspaceId: result.workspaceId,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (result.status === "stale_revision") {
+      return NextResponse.json(
+        {
+          error: {
+            code: "INGEST_STALE_REVISION",
+            message: "Incoming metric revision is older than the stored revision.",
+          },
+          campaignId: result.campaignId,
+          workspaceId: result.workspaceId,
+        },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json({
       status: result.status,
       campaignId: result.campaignId,
       workspaceId: result.workspaceId,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: "Metrics ingestion failed.",
-        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 400 },
+      { status: 503 },
     );
   }
 }

@@ -1,6 +1,6 @@
 import { addMinutes, subMinutes } from "date-fns";
 import { beforeEach, describe, expect, it } from "vitest";
-import { evaluateCampaign } from "@/domain/engine";
+import { evaluateCampaign, listSourceHealth } from "@/domain/engine";
 import { query, queryOne } from "@/db/sql";
 import {
   prepareDemoState,
@@ -33,7 +33,9 @@ describe("live PostgreSQL freshness behavior", () => {
 
     await query(
       `update source_health
-       set last_successful_event_at = now() - interval '3 hour', freshness_state = 'stale'
+       set last_successful_event_at = now() - interval '3 hour',
+           latest_mature_interval_end = now() - interval '3 hour',
+           freshness_state = 'healthy'
        where workspace_id = $1 and source = 'revenue'`,
       [workspaceId],
     );
@@ -51,6 +53,38 @@ describe("live PostgreSQL freshness behavior", () => {
 
     expect(latestEvaluation?.result).toBe("suppressed");
     expect(String(latestEvaluation?.suppression_reason ?? "")).toContain("stale");
+  });
+
+  it("listSourceHealth derives UI freshness from timestamps, not stored freshness_state", async () => {
+    const seeded = await queryOne<{ workspace_id: string }>(
+      `select workspace_id
+       from external_campaign_mappings
+       where source = 'meta' and external_campaign_id = 'meta-auto-211'
+       limit 1`,
+    );
+
+    const workspaceId = String(seeded?.workspace_id);
+
+    const start = subMinutes(new Date(), 95);
+    await seedHealthy(start, 1);
+
+    await query(
+      `update source_health
+       set last_successful_event_at = now() - interval '3 hour',
+           latest_mature_interval_end = now() - interval '3 hour',
+           freshness_state = 'healthy'
+       where workspace_id = $1 and source = 'revenue'`,
+      [workspaceId],
+    );
+
+    const rows = await listSourceHealth();
+    const revenue = (rows as Array<Record<string, unknown>>).find(
+      (row) => String(row.source) === "revenue",
+    );
+
+    expect(revenue).toBeTruthy();
+    expect(String(revenue?.freshness_label)).toBe("Stale");
+    expect(Boolean(revenue?.suppresses_decisions)).toBe(true);
   });
 
   it("fresh data permits reevaluation", async () => {

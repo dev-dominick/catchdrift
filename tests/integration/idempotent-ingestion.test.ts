@@ -1,6 +1,6 @@
 import { addMinutes, subMinutes } from "date-fns";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ingestMetricObservation, resetDemoWorkspace } from "@/domain/engine";
+import { ingestDeploymentEvent, ingestMetricObservation, resetDemoWorkspace } from "@/domain/engine";
 import { queryOne } from "@/db/sql";
 import { DEMO_EXTERNAL_CAMPAIGN_ID } from "@/lib/constants";
 import { prepareDemoState } from "./helpers";
@@ -89,6 +89,127 @@ describe("live PostgreSQL ingestion semantics", () => {
 
     expect(revised.status).toBe("revised");
     expect(Number(count?.count ?? "0")).toBe(2);
+  });
+
+  it("same revision with different payload hash is conflict", async () => {
+    const start = subMinutes(new Date(), 15);
+    const end = addMinutes(start, 5);
+
+    await ingestMetricObservation({
+      source: "spend_feed",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      metric: "spend",
+      value: "75",
+      intervalStart: start.toISOString(),
+      intervalEnd: end.toISOString(),
+      sourceRecordId: "conflict-1",
+      revision: 1,
+      maturity: "mature",
+      currency: "USD",
+    });
+
+    const conflict = await ingestMetricObservation({
+      source: "spend_feed",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      metric: "spend",
+      value: "99",
+      intervalStart: start.toISOString(),
+      intervalEnd: end.toISOString(),
+      sourceRecordId: "conflict-1",
+      revision: 1,
+      maturity: "mature",
+      currency: "USD",
+    });
+
+    expect(conflict.status).toBe("conflict");
+  });
+
+  it("lower metric revision is stale_revision", async () => {
+    const start = subMinutes(new Date(), 15);
+    const end = addMinutes(start, 5);
+
+    await ingestMetricObservation({
+      source: "spend_feed",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      metric: "spend",
+      value: "75",
+      intervalStart: start.toISOString(),
+      intervalEnd: end.toISOString(),
+      sourceRecordId: "stale-1",
+      revision: 2,
+      maturity: "mature",
+      currency: "USD",
+    });
+
+    const stale = await ingestMetricObservation({
+      source: "spend_feed",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      metric: "spend",
+      value: "74",
+      intervalStart: start.toISOString(),
+      intervalEnd: end.toISOString(),
+      sourceRecordId: "stale-1",
+      revision: 1,
+      maturity: "mature",
+      currency: "USD",
+    });
+
+    expect(stale.status).toBe("stale_revision");
+  });
+
+  it("deployment ingestion supports duplicate revised stale and conflict semantics", async () => {
+    const deployedAt = subMinutes(new Date(), 40);
+
+    const first = await ingestDeploymentEvent({
+      source: "github",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      externalDeploymentId: "semantics-v42",
+      version: "v42",
+      deployedAt: deployedAt.toISOString(),
+      changes: [{ path: "redirectUrl", previousValue: "/apply?click_id={{click_id}}", nextValue: "/apply" }],
+    });
+
+    const duplicate = await ingestDeploymentEvent({
+      source: "github",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      externalDeploymentId: "semantics-v42",
+      version: "v42",
+      deployedAt: deployedAt.toISOString(),
+      changes: [{ path: "redirectUrl", previousValue: "/apply?click_id={{click_id}}", nextValue: "/apply" }],
+    });
+
+    const conflict = await ingestDeploymentEvent({
+      source: "github",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      externalDeploymentId: "semantics-v42",
+      version: "v42-hotfix",
+      deployedAt: deployedAt.toISOString(),
+      changes: [{ path: "redirectUrl", previousValue: "/apply", nextValue: "/apply?click_id={{click_id}}" }],
+    });
+
+    const stale = await ingestDeploymentEvent({
+      source: "github",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      externalDeploymentId: "semantics-v42",
+      version: "v41",
+      deployedAt: subMinutes(deployedAt, 5).toISOString(),
+      changes: [{ path: "redirectUrl", previousValue: "/apply?click_id={{click_id}}", nextValue: "/apply?legacy=1" }],
+    });
+
+    const revised = await ingestDeploymentEvent({
+      source: "github",
+      externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
+      externalDeploymentId: "semantics-v42",
+      version: "v43",
+      deployedAt: addMinutes(deployedAt, 5).toISOString(),
+      changes: [{ path: "redirectUrl", previousValue: "/apply", nextValue: "/apply?click_id={{click_id}}" }],
+    });
+
+    expect(first.status).toBe("inserted");
+    expect(duplicate.status).toBe("duplicate");
+    expect(conflict.status).toBe("conflict");
+    expect(stale.status).toBe("stale_revision");
+    expect(revised.status).toBe("revised");
   });
 
   it("demo reset cannot delete non-demo workspace data", async () => {

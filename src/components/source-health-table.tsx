@@ -5,6 +5,9 @@ type SourceHealth = {
   latest_mature_interval_end: string | null;
   freshness_state: string;
   connector_state: string;
+  freshness_label?: string;
+  overdue_minutes?: number | null;
+  suppresses_decisions?: boolean;
 };
 
 export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
@@ -35,16 +38,24 @@ export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
               <td className="px-4 py-3 font-medium text-slate-900">{row.source}</td>
               <td className="px-4 py-3">
                 {row.last_successful_event_at
-                  ? new Date(row.last_successful_event_at).toLocaleString()
+                  ? new Date(row.last_successful_event_at).toLocaleString(undefined, { timeZoneName: "short" })
                   : "-"}
               </td>
               <td className="px-4 py-3">{row.expected_delay_minutes} min</td>
               <td className="px-4 py-3">
                 {row.latest_mature_interval_end
-                  ? new Date(row.latest_mature_interval_end).toLocaleString()
+                  ? new Date(row.latest_mature_interval_end).toLocaleString(undefined, { timeZoneName: "short" })
                   : "-"}
               </td>
-              <td className="px-4 py-3 capitalize">{row.freshness_state}</td>
+              <td className="px-4 py-3">
+                <div className="font-medium text-slate-900">{row.freshness_label ?? row.freshness_state}</div>
+                {typeof row.overdue_minutes === "number" && row.overdue_minutes > 0 ? (
+                  <div className="text-xs text-slate-600">{row.overdue_minutes} min overdue</div>
+                ) : null}
+                {row.suppresses_decisions ? (
+                  <div className="text-xs text-amber-800">Automated incident decisions suppressed for safety</div>
+                ) : null}
+              </td>
               <td className="px-4 py-3 capitalize">{row.connector_state}</td>
             </tr>
           ))}

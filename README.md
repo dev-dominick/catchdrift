@@ -2,13 +2,14 @@
 
 CatchDrift is a deployment-aware campaign protection system for media-buying teams. It detects tracking-integrity failures while paid spend is still active, preserves evidence, estimates exposure, and verifies recovery.
 
-## Live Submission
+## Submission in 30 seconds
 
 - Live URL: https://catchdrift.media/
 - Railway URL: https://catchdrift-web-production.up.railway.app
 - Repository: https://github.com/dev-dominick/catchdrift
+- Demo path: homepage -> run live replay -> incident appears active -> recovery verified on incident page
 
-## What CatchDrift Does
+## What it does
 
 CatchDrift continuously evaluates campaign telemetry and deployment events, then opens a deterministic incident when all required conditions persist:
 
@@ -28,7 +29,7 @@ When triggered, CatchDrift records immutable incident evidence:
 
 It then tracks lifecycle transitions from detected to recovered/resolved and verifies recovery using explicit metric criteria.
 
-## Why This Problem
+## Why this problem
 
 Paid campaigns can continue spending while attribution quality silently degrades after operational changes. Teams often see symptoms in dashboards but do not quickly connect:
 
@@ -38,7 +39,29 @@ Paid campaigns can continue spending while attribution quality silently degrades
 
 CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
 
-## Why This Helps Media Buying Economics
+The challenge required independent problem selection. I selected this hypothesis from It's Today Media's described media-buying workflow. My first full-time step would be validating its frequency, cost, current response process, and false-positive tolerance with media buyers before expanding implementation.
+
+## What I would build next
+
+1. Operator discovery interviews to calibrate detection thresholds and alert fatigue tolerance.
+2. Connector ingestion from real ad, attribution, and deployment systems.
+3. Channel delivery into Slack/ticketing with acknowledgement loops.
+4. Additional deterministic rules for conversion-path integrity variants.
+5. Outcome instrumentation for time-to-detect, time-to-acknowledge, and estimated exposure surfaced.
+
+## Run the live demo
+
+1. Open `/`.
+2. Click `Run the 25-second incident replay`.
+3. Observe active incident state before recovery.
+4. Keep incident detail open and watch status update to recovered.
+
+CLI equivalent:
+
+- `pnpm demo:reset`
+- `pnpm demo:replay`
+
+## Why the buyer cares
 
 Example from deterministic replay profile:
 
@@ -48,7 +71,47 @@ Example from deterministic replay profile:
 
 This is not confirmed money saved. It is estimated exposure surfaced while failure could otherwise remain unnoticed.
 
-## AI Boundary (Deliberately Safe)
+## Real versus simulated
+
+Real:
+
+- ingestion API contracts;
+- persistence, idempotency, revision handling;
+- worker queue + retries;
+- deterministic rule and exposure logic;
+- deterministic correlation and recovery tracking;
+- asynchronous replay run-state contracts (202/200/409/429);
+- UI workflow across incident states.
+
+Simulated:
+
+- campaign telemetry source values for replay;
+- deployment event feed input for demo;
+- external ad-platform connectors.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  A[Ingestion APIs] --> B[(PostgreSQL)]
+  B --> C[Durable Jobs]
+  C --> D[Worker Evaluator]
+  D --> E[Rule Evaluations]
+  D --> F[Incidents + Evidence]
+  F --> G[Incident UI]
+  F --> H[Optional AI Buyer Brief]
+  I[Demo Replay Orchestrator] --> B
+  I --> C
+  I --> J[Demo Run State API]
+```
+
+Runtime details:
+
+- Normal ingestion uses durable queued jobs and a worker.
+- Contest demo replay processes only its isolated demo jobs inline without relying on a separately scheduled worker.
+- Both paths use the same persisted evaluation and incident logic.
+
+## Safety boundaries
 
 CatchDrift keeps all financial and incident decisions deterministic.
 
@@ -61,66 +124,6 @@ AI is optional and limited to an investigation brief generated from persisted st
 - control campaign spend.
 
 If model configuration is unavailable or output is invalid, CatchDrift falls back to deterministic guidance.
-
-## Capability Matrix
-
-| Capability | Implemented | Notes |
-|---|---|---|
-| Deterministic detection (`tracking_integrity_failure@1`) | Yes | Persistence gating + spend gating + freshness checks |
-| Deployment correlation | Yes | Evidence-backed score, explicitly non-causal |
-| Exposure calculation | Yes | Deterministic exposure model with persisted breakdown |
-| Incident lifecycle | Yes | detected -> acknowledged -> investigating -> recovered/resolved |
-| Recovery verification | Yes | Deterministic multi-interval recovery criteria |
-| Stale-source suppression | Yes | Rule suppression with reasons |
-| Grounded AI buyer brief | Yes (optional) | Schema-validated output + deterministic fallback |
-| Provider OAuth connectors | No | Simulated replay inputs for challenge demo |
-| Automatic campaign pausing | No | Intentionally excluded for operational safety |
-
-## Architecture
-
-```mermaid
-flowchart LR
-  A[Ingestion APIs] --> B[(PostgreSQL)]
-  B --> C[Job Queue]
-  C --> D[Worker Evaluator]
-  D --> E[Rule Evaluations]
-  D --> F[Incidents + Evidence]
-  D --> G[Recovery Verification]
-  F --> H[Next.js Incident UI]
-  F --> I[Optional AI Buyer Brief]
-```
-
-Runtime model:
-
-- Web: Next.js App Router pages + APIs
-- Worker: queued campaign evaluation + lifecycle updates
-- DB: PostgreSQL via Drizzle schema/migrations
-
-## Security Boundary
-
-- Ingestion endpoints require bearer token (`INGESTION_TOKEN`).
-- Incident logic reads persisted aggregates only (no lead PII required).
-- Worker error persistence is redacted.
-- Secrets are environment-scoped.
-- AI payloads are structured evidence only; no key or secret logging.
-- No automatic remediation actions in MVP.
-
-## Real vs Simulated
-
-Real:
-
-- ingestion API contracts;
-- persistence, idempotency, revision handling;
-- worker queue + retries;
-- deterministic rule and exposure logic;
-- deterministic correlation and recovery tracking;
-- UI workflow across incident states.
-
-Simulated:
-
-- campaign telemetry source values for replay;
-- deployment event feed input for demo;
-- external ad-platform connectors.
 
 ## Local Setup
 
@@ -147,45 +150,28 @@ Optional (AI brief):
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (default: `gpt-4.1-mini`)
 
-## Demo Instructions (Reset to Recovery)
-
-1. Open homepage.
-2. Click **Run the 90-second protection demo**.
-3. Watch automatic transition from healthy baseline to detected incident.
-4. Review money-first incident summary, baseline comparison, trigger explanation, deployment correlation, and recovery evidence.
-5. Optionally generate an investigation brief.
-  - label is **AI-generated investigation brief** only when model output succeeds;
-  - otherwise label is **Deterministic investigation brief** using persisted evidence.
-6. Click **Replay Demo** from incident page to rerun and verify recovered state in exception queue.
-
-CLI equivalent:
-
-- `pnpm demo:reset`
-- `pnpm demo:replay`
-
-## Test Commands
+## Verification
 
 - Typecheck: `pnpm typecheck`
+- Lint: `pnpm lint`
 - Unit: `pnpm test:unit`
 - Integration: `pnpm test:integration`
+- Combined unit + integration: `pnpm test`
 - E2E: `pnpm test:e2e`
-- Full suite: `pnpm test`
+- Full automated suite: `pnpm test:all`
+- Contest verification gate: `pnpm verify`
 
-## Contest Questions (Direct Answers)
+`pnpm verify` runs: typecheck, lint, unit tests, integration tests, production build, and E2E.
 
-### What does this tool do?
+## Detailed technical notes
 
-CatchDrift detects active-spend tracking failures with deterministic rules, ties them to strongest correlated operational changes, estimates exposure, and verifies recovery while preserving immutable evidence.
-
-### Why this problem?
-
-This is a high-cost failure mode in paid media: spend continues while tracking quality deteriorates. Detection delay creates avoidable exposure and poor optimization decisions. A lean team needs prioritized, evidence-backed exceptions, not another broad dashboard.
-
-### What would I build next as full-time engineer?
-
-1. Buyer discovery sessions with It's Today Media operators.
-2. Read-only integrations for actual spend, attribution, revenue, deployment, and landing-page systems.
-3. Historical calibration for thresholds, confidence, and false-positive control.
-4. Delivery into existing workflow channels (Slack/ticketing) with acknowledgement loops.
-5. Second deterministic conversion-path integrity rule.
-6. Pilot measurement of false positives, time-to-detect, time-to-acknowledge, and potential avoided exposure.
+- Rule identity: `tracking_integrity_failure@1`
+- Required stale-source suppression is derived from current time and source delay expectations, not trusted from persisted `freshness_state`.
+- Incident correlation is strongest-evidence correlation, not root-cause proof.
+- Exposure is deterministic and labeled as estimate.
+- Replay and reset endpoints enforce contention and throttle semantics:
+  - `202` replay accepted;
+  - `200` status polling responses;
+  - `409` contention conflicts;
+  - `429` cooldown/rate limits;
+  - safe `5xx` operational failures with public reference IDs.
