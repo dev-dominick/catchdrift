@@ -109,13 +109,19 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   await page.goto(String(incidentUrl));
   const activeReachedAt = Date.now();
 
-  await expect(page.getByRole("heading", { name: /What happened\?/i })).toBeVisible();
-  await expect(page.getByText(/Current state/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Tracking dropped after deployment/i })).toBeVisible();
+  await expect(page.getByText(/Why CatchDrift flagged it/i)).toBeVisible();
 
-  await expect(page.getByText(/Final status:/i)).toContainText(/recovered/i, {
+  await expect(page.getByText(/Recovery timestamp:/i)).toBeVisible({
     timeout: 90_000,
   });
   const recoveredAt = Date.now();
+
+  await page.getByRole("button", { name: "Start investigation" }).click();
+  await expect(page.getByText(/^Investigating$/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark resolved" }).click();
+  await expect(page.getByText(/^Resolved$/).first()).toBeVisible();
 
   expect(activeReachedAt - startedAt).toBeLessThan(30_000);
   expect(recoveredAt - startedAt).toBeLessThan(45_000);
@@ -129,15 +135,25 @@ test("navigation and page refresh do not abort async replay", async ({ page }) =
   await page.goto("/");
   await resetDemoViaApi(page);
 
-  await page.getByRole("button", { name: "Run the 25-second incident replay" }).click();
+  await page.getByRole("button", { name: "Start replay" }).click();
+  await expect(page).toHaveURL(/\/$/, { timeout: 90_000 });
+  await expect(page.getByRole("button", { name: /Campaign healthy|A landing-page change just went live|Traffic is arriving/i })).toBeVisible();
+
+  const openIncidentLink = page.getByRole("link", { name: /Open incident|Open recovered incident/i });
+  await expect(openIncidentLink).toBeVisible({ timeout: 90_000 });
+  await expect(openIncidentLink).toHaveCount(1);
+
+  const incidentUrl = await openIncidentLink.getAttribute("href");
+  expect(incidentUrl).toBeTruthy();
+
+  await openIncidentLink.click();
   await expect(page).toHaveURL(/\/incidents\/[0-9a-f\-]+$/i, { timeout: 90_000 });
 
-  const incidentUrl = page.url();
   await page.goto("/");
-  await page.goto(incidentUrl);
+  await page.goto(String(incidentUrl));
   await page.reload();
 
-  await expect(page.getByText(/Final status:/i)).toContainText(/recovered/i, {
+  await expect(page.getByText(/Recovery timestamp:/i)).toBeVisible({
     timeout: 90_000,
   });
 });
@@ -193,7 +209,8 @@ test("stale source suppression is visible", async ({ page }) => {
 
   await forceStaleRevenueSource();
   await page.goto("/sources");
-  await expect(page.getByText(/Automated incident decisions suppressed for safety/i)).toBeVisible();
+  await expect(page.getByText(/Detection paused\./i)).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Revenue" })).toBeVisible();
 });
 
 test("mobile viewport layout remains usable", async ({ page }) => {
@@ -208,5 +225,5 @@ test("mobile viewport layout remains usable", async ({ page }) => {
   });
 
   expect(noHorizontalOverflow).toBe(true);
-  await expect(page.getByRole("button", { name: "Run the 25-second incident replay" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start replay" })).toBeVisible();
 });

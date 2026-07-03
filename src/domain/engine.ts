@@ -1093,6 +1093,21 @@ export async function getIncident(incidentId: string) {
     [incident.workspace_id],
   );
 
+  const evaluation = await queryOne<{
+    inputs_json: { fresh?: boolean; staleReasons?: string[] };
+    suppression_reason: string | null;
+    evaluated_at: string;
+  }>(
+    `select inputs_json, suppression_reason, evaluated_at
+     from rule_evaluations
+     where campaign_id = $1
+       and rule_id = $2
+       and evaluated_at <= $3
+     order by evaluated_at desc
+     limit 1`,
+    [incident.campaign_id, RULE_ID, incident.detected_at],
+  );
+
   const now = new Date();
   const derivedSourceHealth = (sourceHealth as Array<Record<string, unknown>>).map((row) => {
     const derived = deriveSourceFreshness(
@@ -1128,7 +1143,26 @@ export async function getIncident(incidentId: string) {
     [incident.campaign_id],
   );
 
-  return { incident, evidence, events, timeline, sourceHealth: derivedSourceHealth, deployments };
+  const evaluationFreshness = evaluation
+    ? {
+        fresh: Boolean(evaluation.inputs_json?.fresh),
+        staleReasons: Array.isArray(evaluation.inputs_json?.staleReasons)
+          ? evaluation.inputs_json.staleReasons
+          : [],
+        suppressionReason: evaluation.suppression_reason,
+        evaluatedAt: evaluation.evaluated_at,
+      }
+    : null;
+
+  return {
+    incident,
+    evidence,
+    events,
+    timeline,
+    sourceHealth: derivedSourceHealth,
+    evaluationFreshness,
+    deployments,
+  };
 }
 
 export async function updateIncidentStatus(params: {

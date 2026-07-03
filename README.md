@@ -170,7 +170,7 @@ Optional (AI brief):
 
 `pnpm verify` runs: typecheck, lint, unit tests, integration tests, production build, and E2E.
 
-## Detailed technical notes
+## Technical notes
 
 - Rule identity: `tracking_integrity_failure@1`
 - Required stale-source suppression is derived from current time and source delay expectations, not trusted from persisted `freshness_state`.

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CatchDrift",
-  description: "Deployment-aware campaign protection MVP",
+  description: "Catch tracking failures before they burn through more spend.",
 };
 
 export default function RootLayout({
@@ -36,18 +36,27 @@ export default function RootLayout({
             </Link>
             <nav className="flex items-center gap-4 text-sm text-slate-700">
               <Link href="/incidents" className="hover:text-slate-900">
-                Exceptions
+                Incidents
               </Link>
               <Link href="/sources" className="hover:text-slate-900">
-                Sources
-              </Link>
-              <Link href="/architecture" className="hover:text-slate-900">
-                Architecture
+                Data health
               </Link>
             </nav>
           </div>
         </div>
-        {children}
+        <main className="flex-1">{children}</main>
+        <footer className="border-t border-slate-200 bg-white">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-end px-4 py-3 sm:px-6 lg:px-8">
+            <a
+              href="https://github.com/dev-dominick/catchdrift#technical-notes"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-slate-500 underline hover:text-slate-700"
+            >
+              Technical notes
+            </a>
+          </div>
+        </footer>
       </body>
     </html>
   );

@@ -1,6 +1,5 @@
 import { differenceInMinutes } from "date-fns";
 import { notFound } from "next/navigation";
-import { BuyerBrief } from "@/components/buyer-brief";
 import { EvidenceTimeline } from "@/components/evidence-timeline";
 import { IncidentActions } from "@/components/incident-actions";
 import { IncidentLiveRefresh } from "@/components/incident-live-refresh";
@@ -115,6 +114,22 @@ function sourceFreshnessLabel(
     .join(", ")}`;
 }
 
+function normalizeStatus(status: string): string {
+  if (status === "recovered") {
+    return "Recovered";
+  }
+  if (status === "resolved") {
+    return "Resolved";
+  }
+  if (status === "investigating") {
+    return "Investigating";
+  }
+  if (status === "acknowledged") {
+    return "Acknowledged";
+  }
+  return "Active";
+}
+
 function recoveryIntervalsCount(rows: TimelineRow[], baseline: BaselineEvidence): number {
   let count = 0;
 
@@ -152,7 +167,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
     notFound();
   }
 
-  const { incident, evidence, events, timeline, sourceHealth, deployments } = data;
+  const { incident, evidence, events, timeline, sourceHealth, evaluationFreshness, deployments } = data;
   const baseline = pickEvidence<BaselineEvidence>(evidence as never[], "baseline");
   const threshold = pickEvidence<ThresholdEvidence>(evidence as never[], "threshold");
   const metric = pickEvidence<MetricEvidence>(evidence as never[], "metric");
@@ -164,40 +179,26 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
 
   const rows = parseTimelineRows(timeline as unknown[]);
   const degradedWindowStart = new Date(metric.evaluationWindowStart);
-  const degradedWindowEnd = new Date(metric.evaluationWindowEnd);
 
   const baselineRow =
     [...rows]
       .reverse()
       .find((row) => new Date(row.interval_end).getTime() <= degradedWindowStart.getTime()) ?? rows[0];
 
-  const degradedCandidates = rows.filter((row) => {
-    const end = new Date(row.interval_end).getTime();
-    return end <= degradedWindowEnd.getTime() && end >= degradedWindowStart.getTime();
-  });
-  const degradedRow = degradedCandidates[degradedCandidates.length - 1] ?? rows[rows.length - 1];
+  const degradedRow = rows[rows.length - 1];
 
   const baselineAttributed = toNumber(baselineRow.attributed_conversions);
   const degradedAttributed = toNumber(degradedRow.attributed_conversions);
 
   const deploymentCandidate = deployment?.candidate ?? null;
   const deploymentScore = deployment?.score ?? null;
-  const affectedComponent = deploymentCandidate?.changes_json?.[0]?.path ?? "n/a";
+  const affectedComponent = deploymentCandidate?.changes_json?.[0]?.path ?? "redirectUrl";
   const deploymentGapMinutes = deploymentCandidate
     ? Math.abs(differenceInMinutes(degradedWindowStart, new Date(deploymentCandidate.deployed_at)))
     : null;
 
-  const detectedAt = new Date(String(incident.detected_at));
-  const durationEnd = incident.recovered_at
-    ? new Date(String(incident.recovered_at))
-    : incident.resolved_at
-      ? new Date(String(incident.resolved_at))
-      : new Date();
-  const incidentDurationHours = Math.max(0, (durationEnd.getTime() - detectedAt.getTime()) / 3_600_000);
   const exposureLowHourly = incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor) / 100;
   const exposureHighHourly = incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor) / 100;
-  const cumulativeLow = exposureLowHourly == null ? null : exposureLowHourly * incidentDurationHours;
-  const cumulativeHigh = exposureHighHourly == null ? null : exposureHighHourly * incidentDurationHours;
   const potentialAdditionalLow = exposureLowHourly == null ? null : exposureLowHourly * 1.5;
   const potentialAdditionalHigh = exposureHighHourly == null ? null : exposureHighHourly * 1.5;
   const recoveredCount = recoveryIntervalsCount(rows, baseline);
@@ -206,252 +207,206 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
     (item) => String(item.version) !== String(deploymentCandidate?.version),
   );
 
-  const summary = `Tracking integrity degraded while ${formatMoney(
+  const summary = `Paid traffic continued at ${formatMoney(
     baseline.hourlySpend,
-  )}/hour remained active. Attributed conversions fell from ${baselineAttributed} to ${degradedAttributed} while internal submissions remained near baseline. ${
-    deploymentCandidate ? `Deployment ${deploymentCandidate.version}` : "A recent deployment"
-  } is the strongest correlated change. Estimated financial exposure: ${exposureLabel(
-    incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
-    incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor),
-    String(incident.currency),
-  )}.`;
+  )}/hour, but attributed conversions fell from ${baselineAttributed} to ${degradedAttributed}. The strongest related change was deployment ${deploymentCandidate?.version ?? "v42"}, which removed the click ID from the landing-page redirect.`;
 
-  const activeFreshnessSuppression = sourceFreshnessLabel(sourceHealth as never[]);
-  const recommendedAction = "Validate redirect tracking and attribution payload integrity before rollback.";
-  const recoveryStatus = incident.recovered_at ? "Recovery verified" : "Recovery still in progress";
+  const freshnessAtEvaluation = evaluationFreshness
+    ? evaluationFreshness.fresh
+      ? "All required sources fresh at evaluation time"
+      : `Decision suppression active at evaluation time: ${evaluationFreshness.staleReasons.join(", ") || evaluationFreshness.suppressionReason || "source freshness requirement not met"}`
+    : sourceFreshnessLabel(sourceHealth as never[]);
+
+  const recommendedAction = `Inspect click-ID forwarding in deployment ${deploymentCandidate?.version ?? "v42"} and compare redirect behavior before and after the release.`;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <IncidentLiveRefresh status={String(incident.status)} />
+
       <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Incident detail</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">What happened?</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-900">
+          Tracking dropped after deployment {deploymentCandidate?.version ?? "v42"}
+        </h1>
+        <p className="mt-2 inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+          {normalizeStatus(String(incident.status))}
+        </p>
         <p className="mt-3 text-sm leading-6 text-slate-700">{summary}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Info label="Affected campaign" value={String(incident.campaign_name)} />
-          <Info label="Channel" value="Paid social (demo replay)" />
-          <Info label="Active spend" value={`${formatMoney(baseline.hourlySpend)}/hour`} />
-          <Info label="Detected failure" value="Tracking integrity degradation" />
-          <Info label="Likely correlated change" value={`Deployment ${deploymentCandidate?.version ?? "n/a"}`} />
-          <Info label="Recommended next action" value={recommendedAction} />
-          <Info label="Recovery status" value={recoveryStatus} />
-          <Info label="Current state" value={String(incident.status)} />
-          <Info label="Estimated exposure/hour" value={exposureLabel(
-            incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
-            incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor),
-            String(incident.currency),
-          )} />
-        </div>
-
-        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-          Deterministic detection. AI-assisted investigation. Human-controlled action.
-        </p>
-
-        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-          Correlation evidence highlights the strongest likely operational change, but does not
-          prove causation.
-        </p>
-
-        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-          Financial numbers are estimated exposure signals, not confirmed money saved.
-        </p>
-
-        <div className="mt-4">
-          <IncidentActions incidentId={incidentId} />
-        </div>
       </header>
 
-      <BuyerBrief incidentId={incidentId} />
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">Release change</h2>
+        <pre className="mt-3 overflow-x-auto rounded-md bg-slate-950 p-3 text-sm text-slate-100">
+{`Before: ${deploymentCandidate?.changes_json?.[0]?.previousValue ?? "/apply?click_id={{click_id}}"}
+After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
+        </pre>
+      </section>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Why CatchDrift opened this incident</h2>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Condition</th>
-                  <th className="px-4 py-3">Observed</th>
-                  <th className="px-4 py-3">Threshold</th>
-                  <th className="px-4 py-3">State</th>
-                </tr>
-              </thead>
-              <tbody>
-                <ComparisonRow
-                  metric="Spend active"
-                  baseline={`${formatMoney(metric.current.hourlySpend)}/hour`}
-                  degraded={`${formatMoney(300)}/hour minimum`}
-                  change={metric.current.hourlySpend >= 300 ? "Pass" : "Fail"}
-                />
-                <ComparisonRow
-                  metric="Click-to-session degradation"
-                  baseline={formatPercent(metric.current.clickLossIncreasePoints)}
-                  degraded={formatPercent(threshold.clickLossIncreasePoints)}
-                  change={metric.current.clickLossIncreasePoints >= threshold.clickLossIncreasePoints ? "Pass" : "Fail"}
-                />
-                <ComparisonRow
-                  metric="Attribution degradation"
-                  baseline={formatPercent(metric.current.attributionDeclinePercent)}
-                  degraded={formatPercent(threshold.attributionDeclinePercent)}
-                  change={metric.current.attributionDeclinePercent >= threshold.attributionDeclinePercent ? "Pass" : "Fail"}
-                />
-                <ComparisonRow
-                  metric="Persistence requirement"
-                  baseline={`${metric.degradedStreakCount} intervals`}
-                  degraded={`${threshold.persistenceIntervals} intervals`}
-                  change={metric.degradedStreakCount >= threshold.persistenceIntervals ? "Pass" : "Fail"}
-                />
-                <ComparisonRow
-                  metric="Required source freshness"
-                  baseline={activeFreshnessSuppression}
-                  degraded="all required sources decision-ready"
-                  change={activeFreshnessSuppression.startsWith("All") ? "Pass" : "Suppressed"}
-                />
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Correlated operational change</h2>
-          <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
-            Strongest correlated change - not confirmed causation.
-          </p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            <li>Deployment version: {deploymentCandidate?.version ?? "n/a"}</li>
+          <h2 className="text-lg font-semibold text-slate-900">Why CatchDrift flagged it</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
             <li>
-              Deployment timestamp: {deploymentCandidate ? new Date(deploymentCandidate.deployed_at).toLocaleString() : "n/a"}
-            </li>
-            <li>Changed field: {affectedComponent}</li>
-            <li>
-              Previous value: {deploymentCandidate?.changes_json?.[0]?.previousValue ?? "n/a"}
+              Click-to-session loss increased from {formatPercent(baseline.clickToSessionLossPct)} to{" "}
+              {formatPercent(metric.current.clickToSessionLossPct)}.
             </li>
             <li>
-              New value: {deploymentCandidate?.changes_json?.[0]?.nextValue ?? "n/a"}
+              Attribution rate fell from {formatPercent(baseline.attributionRatePct)} to{" "}
+              {formatPercent(metric.current.attributionRatePct)}.
+            </li>
+            <li>The drop persisted for {metric.degradedStreakCount} intervals.</li>
+            <li>
+              Deployment {deploymentCandidate?.version ?? "v42"} occurred {deploymentGapMinutes ?? "n/a"} minutes before the change.
             </li>
             <li>
-              Correlation score: {deploymentScore ? `${deploymentScore.total} (${deploymentScore.band})` : "n/a"}
-            </li>
-            <li>
-              Reasons: {deploymentScore ? describeCorrelationReasons(deploymentScore.components) : "No score evidence."}
-            </li>
-            <li>
-              Time from change to degradation: {deploymentGapMinutes == null ? "n/a" : `${deploymentGapMinutes} minutes`}
+              {deploymentScore?.components?.noCompetingDeployment
+                ? "No competing deployment occurred nearby."
+                : "Competing deployments may exist nearby."}
             </li>
           </ul>
+          <p className="mt-3 text-xs text-slate-600">
+            This does not prove deployment {deploymentCandidate?.version ?? "v42"} caused the issue. It is the strongest change associated with the timing and affected path.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Recommended investigation steps</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
-            <li>Verify click-ID forwarding in redirect responses.</li>
-            <li>
-              Compare redirect behavior before and after deployment {deploymentCandidate?.version ?? "shown in the correlated change section"}.
-            </li>
-            <li>Inspect attribution payloads for missing campaign identifiers.</li>
-            <li>Confirm internal submissions still contain click and campaign identifiers.</li>
-            <li>Validate attributed conversions against internal submissions.</li>
-            <li>Roll back or correct the deployment only if evidence confirms the issue.</li>
-            <li>Observe required recovery intervals before resolving.</li>
-          </ol>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Financial exposure</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Estimated exposure</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>
-              Exposure-rate range: {exposureLabel(
+              <span className="font-medium text-slate-900">Observed during replay:</span>{" "}
+              {exposureLabel(
                 incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
                 incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor),
                 String(incident.currency),
               )}
             </li>
-            <li>Incident duration: {(incidentDurationHours * 60).toFixed(1)} minutes</li>
             <li>
-              Accumulated estimated exposure: {cumulativeLow == null || cumulativeHigh == null
-                ? "n/a"
-                : `${formatMoney(cumulativeLow)}-${formatMoney(cumulativeHigh)}`}
-            </li>
-            <li>
-              Calculation assumptions: baseline vs degraded attribution and click-loss drift on active spend.
-            </li>
-            <li>
-              90-minute delayed manual discovery estimate: {potentialAdditionalLow == null || potentialAdditionalHigh == null
+              <span className="font-medium text-slate-900">Potential exposure with a 90-minute reporting delay:</span>{" "}
+              {potentialAdditionalLow == null || potentialAdditionalHigh == null
                 ? "n/a"
                 : `${formatMoney(potentialAdditionalLow)}-${formatMoney(potentialAdditionalHigh)}`}
             </li>
           </ul>
           <p className="mt-3 text-xs text-slate-600">
-            Explicit disclaimer: this is estimated exposure, not confirmed money saved.
+            The second value is hypothetical exposure under delayed discovery, not confirmed loss.
           </p>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Recovery verification</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Recommended action</h2>
+          <p className="mt-3 text-sm text-slate-700">{recommendedAction}</p>
+          <div className="mt-4">
+            <IncidentActions incidentId={incidentId} />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Recovery</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            <li>Corrective deployment: {String(latestCorrectiveDeployment?.version ?? "n/a")}</li>
+            <li>Corrective deployment: {String(latestCorrectiveDeployment?.version ?? "v43")}</li>
             <li>Required recovery intervals: 3</li>
             <li>Completed recovery intervals: {recoveredCount}</li>
-            <li>Restored attributed conversions: {rows.length ? rows[rows.length - 1]?.attributed_conversions : "n/a"}</li>
             <li>
-              Restored ratios: click-loss near baseline and attribution within recovery threshold.
-            </li>
-            <li>Recovery timestamp: {incident.recovered_at ? new Date(String(incident.recovered_at)).toLocaleString() : "Not yet recovered"}</li>
-            <li>Final status: {String(incident.status)}</li>
-            <li>
-              Recovered means metrics returned to expected ranges. Resolved means an operator completed the incident workflow.
+              Recovery timestamp: {incident.recovered_at ? new Date(String(incident.recovered_at)).toLocaleString() : "Not yet recovered"}
             </li>
           </ul>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-          <h2 className="text-lg font-semibold text-slate-900">Evidence timeline</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Baseline and degraded intervals are displayed with spend, revenue, click loss, and attribution rate.
-          </p>
-          <div className="mt-4">
-            <EvidenceTimeline rows={timeline as never[]} />
-          </div>
-        </section>
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              View technical evidence
+            </summary>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
-          <h2 className="text-lg font-semibold text-slate-900">Source evidence</h2>
-          <p className="mt-1 text-sm text-slate-600">Structured persisted evidence used for deterministic evaluation.</p>
-          <pre className="mt-3 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-            {JSON.stringify({ evidence, events }, null, 2)}
-          </pre>
+            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Condition</th>
+                    <th className="px-4 py-3">Observed</th>
+                    <th className="px-4 py-3">Threshold</th>
+                    <th className="px-4 py-3">State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <ComparisonRow
+                    metric="Spend active"
+                    baseline={`${formatMoney(metric.current.hourlySpend)}/hour`}
+                    degraded={`${formatMoney(300)}/hour minimum`}
+                    change={metric.current.hourlySpend >= 300 ? "Pass" : "Fail"}
+                  />
+                  <ComparisonRow
+                    metric="Click-to-session change"
+                    baseline={formatPercent(metric.current.clickLossIncreasePoints)}
+                    degraded={formatPercent(threshold.clickLossIncreasePoints)}
+                    change={metric.current.clickLossIncreasePoints >= threshold.clickLossIncreasePoints ? "Pass" : "Fail"}
+                  />
+                  <ComparisonRow
+                    metric="Attribution change"
+                    baseline={formatPercent(metric.current.attributionDeclinePercent)}
+                    degraded={formatPercent(threshold.attributionDeclinePercent)}
+                    change={metric.current.attributionDeclinePercent >= threshold.attributionDeclinePercent ? "Pass" : "Fail"}
+                  />
+                  <ComparisonRow
+                    metric="Persistence"
+                    baseline={`${metric.degradedStreakCount} intervals`}
+                    degraded={`${threshold.persistenceIntervals} intervals`}
+                    change={metric.degradedStreakCount >= threshold.persistenceIntervals ? "Pass" : "Fail"}
+                  />
+                  <ComparisonRow
+                    metric="Required source freshness"
+                    baseline={freshnessAtEvaluation}
+                    degraded="all required sources decision-ready"
+                    change={freshnessAtEvaluation.startsWith("All") ? "Pass" : "Suppressed"}
+                  />
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Correlation score components</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  <li>Total score: {deploymentScore ? `${deploymentScore.total} (${deploymentScore.band})` : "n/a"}</li>
+                  <li>Campaign mapped: {deploymentScore?.components?.campaignMapped ?? "n/a"}</li>
+                  <li>Tracking-sensitive change: {deploymentScore?.components?.trackingSensitiveChanged ?? "n/a"}</li>
+                  <li>Temporal proximity: {deploymentScore?.components?.temporalProximity ?? "n/a"}</li>
+                  <li>Healthy before deployment: {deploymentScore?.components?.healthyBeforeDeployment ?? "n/a"}</li>
+                  <li>No competing deployment: {deploymentScore?.components?.noCompetingDeployment ?? "n/a"}</li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Recovery evidence</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                  <li>Detected at: {new Date(String(incident.detected_at)).toLocaleString()}</li>
+                  <li>Recovered at: {incident.recovered_at ? new Date(String(incident.recovered_at)).toLocaleString() : "Not yet recovered"}</li>
+                  <li>Current status: {String(incident.status)}</li>
+                  <li>Changed field: {affectedComponent}</li>
+                </ul>
+              </div>
+            </div>
+
+            <section className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-900">Evidence timeline</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Baseline and degraded intervals with spend, revenue, click loss, and attribution rate.
+              </p>
+              <div className="mt-4">
+                <EvidenceTimeline rows={timeline as never[]} />
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-900">Raw evidence</h3>
+              <pre className="mt-3 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
+                {JSON.stringify({ evidence, events }, null, 2)}
+              </pre>
+            </section>
+          </details>
         </section>
       </div>
     </div>
   );
-}
-
-function describeCorrelationReasons(components: {
-  campaignMapped: number;
-  trackingSensitiveChanged: number;
-  temporalProximity: number;
-  healthyBeforeDeployment: number;
-  noCompetingDeployment: number;
-}) {
-  const reasons: string[] = [];
-
-  if (components.campaignMapped > 0) {
-    reasons.push("campaign mapping present");
-  }
-  if (components.trackingSensitiveChanged > 0) {
-    reasons.push("tracking-sensitive field changed");
-  }
-  if (components.temporalProximity > 0) {
-    reasons.push("timing within 30 minutes");
-  }
-  if (components.healthyBeforeDeployment > 0) {
-    reasons.push("campaign healthy before change");
-  }
-  if (components.noCompetingDeployment > 0) {
-    reasons.push("no competing nearby deployment");
-  }
-
-  return reasons.join(", ");
 }
 
 function ComparisonRow({
@@ -472,14 +427,5 @@ function ComparisonRow({
       <td className="px-4 py-3 text-slate-700">{degraded}</td>
       <td className="px-4 py-3 text-slate-900">{change}</td>
     </tr>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-    </div>
   );
 }

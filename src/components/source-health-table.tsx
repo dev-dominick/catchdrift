@@ -2,13 +2,37 @@ type SourceHealth = {
   source: string;
   expected_delay_minutes: number;
   last_successful_event_at: string | null;
-  latest_mature_interval_end: string | null;
-  freshness_state: string;
-  connector_state: string;
   freshness_label?: string;
   overdue_minutes?: number | null;
   suppresses_decisions?: boolean;
 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  ads_clicks: "Ad clicks",
+  attribution: "Attribution",
+  deployment_feed: "Deployments",
+  internal_forms: "Form submissions",
+  landing_telemetry: "Landing-page sessions",
+  spend_feed: "Spend",
+  revenue: "Revenue",
+};
+
+function formatLastReceived(value: string | null): string {
+  if (!value) {
+    return "No data";
+  }
+
+  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000));
+  if (diffMinutes < 1) {
+    return "Just now";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
+
+  const diffHours = Math.round((diffMinutes / 60) * 10) / 10;
+  return `${diffHours} hours ago`;
+}
 
 export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
   if (rows.length === 0) {
@@ -25,38 +49,27 @@ export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-4 py-3">Source</th>
-            <th className="px-4 py-3">Last successful event</th>
-            <th className="px-4 py-3">Expected delay</th>
-            <th className="px-4 py-3">Latest mature interval</th>
-            <th className="px-4 py-3">Freshness</th>
-            <th className="px-4 py-3">Connector state</th>
+            <th className="px-4 py-3">Last received</th>
+            <th className="px-4 py-3">Expected every</th>
+            <th className="px-4 py-3">Status</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.source} className="border-t border-slate-100">
-              <td className="px-4 py-3 font-medium text-slate-900">{row.source}</td>
-              <td className="px-4 py-3">
-                {row.last_successful_event_at
-                  ? new Date(row.last_successful_event_at).toLocaleString(undefined, { timeZoneName: "short" })
-                  : "-"}
+              <td className="px-4 py-3 font-medium text-slate-900">
+                {SOURCE_LABELS[row.source] ?? row.source}
               </td>
+              <td className="px-4 py-3">{formatLastReceived(row.last_successful_event_at)}</td>
               <td className="px-4 py-3">{row.expected_delay_minutes} min</td>
               <td className="px-4 py-3">
-                {row.latest_mature_interval_end
-                  ? new Date(row.latest_mature_interval_end).toLocaleString(undefined, { timeZoneName: "short" })
-                  : "-"}
-              </td>
-              <td className="px-4 py-3">
-                <div className="font-medium text-slate-900">{row.freshness_label ?? row.freshness_state}</div>
+                <div className="font-medium text-slate-900">
+                  {row.suppresses_decisions ? "Stale" : "Fresh"}
+                </div>
                 {typeof row.overdue_minutes === "number" && row.overdue_minutes > 0 ? (
                   <div className="text-xs text-slate-600">{row.overdue_minutes} min overdue</div>
                 ) : null}
-                {row.suppresses_decisions ? (
-                  <div className="text-xs text-amber-800">Automated incident decisions suppressed for safety</div>
-                ) : null}
               </td>
-              <td className="px-4 py-3 capitalize">{row.connector_state}</td>
             </tr>
           ))}
         </tbody>

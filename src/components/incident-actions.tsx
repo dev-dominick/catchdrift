@@ -3,10 +3,8 @@
 import { useState } from "react";
 
 const ACTIONS = [
-  { label: "Acknowledge", value: "acknowledge" },
-  { label: "Investigate", value: "investigate" },
-  { label: "Dismiss", value: "dismiss" },
-  { label: "Resolve", value: "resolve" },
+  { label: "Start investigation", value: "investigate" },
+  { label: "Mark resolved", value: "resolve" },
 ] as const;
 
 export function IncidentActions({ incidentId }: { incidentId: string }) {
@@ -26,24 +24,6 @@ export function IncidentActions({ incidentId }: { incidentId: string }) {
     window.location.reload();
   }
 
-  async function replayDemo() {
-    setRunning("replay");
-    setError(null);
-    const response = await fetch(`/api/incidents/${incidentId}/replay`, {
-      method: "POST",
-    });
-
-    if (response.status !== 202) {
-      const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-      setError(body?.error?.message ?? `Replay failed to start (${response.status}).`);
-      setRunning(null);
-      return;
-    }
-
-    setRunning(null);
-    window.location.assign("/incidents");
-  }
-
   return (
     <div className="flex flex-wrap gap-2">
       {ACTIONS.map((action) => (
@@ -57,14 +37,6 @@ export function IncidentActions({ incidentId }: { incidentId: string }) {
           {running === action.value ? "Applying..." : action.label}
         </button>
       ))}
-      <button
-        type="button"
-        onClick={replayDemo}
-        disabled={Boolean(running)}
-        className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {running === "replay" ? "Replaying..." : "Replay Demo"}
-      </button>
       {error ? <p className="w-full text-sm text-rose-700">{error}</p> : null}
     </div>
   );
