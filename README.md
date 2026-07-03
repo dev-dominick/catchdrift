@@ -1,155 +1,191 @@
 # CatchDrift
 
-CatchDrift is a deployment-aware campaign protection MVP for performance marketing teams. It detects a tracking integrity failure while spend is active, correlates it with a relevant deployment, computes exposure, and verifies recovery.
+CatchDrift is a deployment-aware campaign protection system for media-buying teams. It detects tracking-integrity failures while paid spend is still active, preserves evidence, estimates exposure, and verifies recovery.
 
-## Submission Links
+## Live Submission
 
-- Live URL: `TBD`
-- Repository URL: `https://github.com/dev-dominick/catchdrift`
-- Loom Walkthrough: `TBD`
+- Live URL: https://catchdrift.media/
+- Railway URL: https://catchdrift-web-production.up.railway.app
+- Repository: https://github.com/dev-dominick/catchdrift
 
-## Completed Proof
+## What CatchDrift Does
 
-The repository implements and replays one deterministic end-to-end workflow:
+CatchDrift continuously evaluates campaign telemetry and deployment events, then opens a deterministic incident when all required conditions persist:
 
-1. Build a healthy baseline with 12 mature five-minute intervals.
-2. Ingest deployment `v42` removing click-ID forwarding.
-3. Ingest 3 degraded mature intervals while spend continues.
-4. Trigger `tracking_integrity_failure@1` only after the third degraded interval.
-5. Correlate the incident with deployment evidence and score components.
-6. Calculate exposure around `$230-$310/hour` from inputs.
-7. Ingest corrective deployment `v43` and recovery intervals.
-8. Mark incident `recovered` without deleting original evidence.
+- spend remains materially active;
+- click-to-session loss degrades above threshold;
+- attribution declines above threshold;
+- degradation persists for required intervals;
+- required sources are fresh (stale-source suppression prevents unsafe decisions).
 
-## What The Tool Does
+When triggered, CatchDrift records immutable incident evidence:
 
-CatchDrift reconciles spend, clicks, sessions, internal submissions, attributed conversions, revenue, and deployment changes. It creates an exception with transparent evidence when tracking integrity fails.
+- baseline metrics;
+- threshold requirements;
+- degraded-window signals;
+- deterministic deployment correlation score;
+- deterministic exposure range.
 
-## Why This Project
+It then tracks lifecycle transitions from detected to recovered/resolved and verifies recovery using explicit metric criteria.
 
-The project focuses on a financially meaningful failure mode: spend continues while tracking quality degrades after deployment. It demonstrates ingestion, processing, deterministic detection, persistence, and recovery verification in one reproducible workflow.
+## Why This Problem
 
-## What Is Real vs Simulated
+Paid campaigns can continue spending while attribution quality silently degrades after operational changes. Teams often see symptoms in dashboards but do not quickly connect:
 
-Real:
-- Authenticated ingestion API (`/api/ingest/metrics`, `/api/ingest/deployments`)
-- PostgreSQL persistence with idempotency and revisions
-- Worker with PostgreSQL-backed jobs and retries
-- Deterministic rule evaluation and suppression logging
-- Deployment correlation scoring
-- Exposure calculation and incident lifecycle
-- Recovery detection
+- financial risk;
+- probable operational change;
+- safe investigation sequence.
 
-Simulated:
-- Campaign source values are controlled demo data
-- No provider OAuth connectors (Meta/Google/TikTok/Taboola)
-- No automatic campaign remediation
+CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
+
+## Why This Helps Media Buying Economics
+
+Example from deterministic replay profile:
+
+- Estimated exposure rate: $230-$310/hour
+- Manual discovery assumption: 90 minutes later
+- Potential additional exposure surfaced earlier: $344-$465
+
+This is not confirmed money saved. It is estimated exposure surfaced while failure could otherwise remain unnoticed.
+
+## AI Boundary (Deliberately Safe)
+
+CatchDrift keeps all financial and incident decisions deterministic.
+
+AI is optional and limited to an investigation brief generated from persisted structured evidence. AI may summarize and prioritize inspection steps, but AI may not:
+
+- create incidents;
+- change severity or confidence;
+- alter exposure values;
+- claim causation;
+- control campaign spend.
+
+If model configuration is unavailable or output is invalid, CatchDrift falls back to deterministic guidance.
+
+## Capability Matrix
+
+| Capability | Implemented | Notes |
+|---|---|---|
+| Deterministic detection (`tracking_integrity_failure@1`) | Yes | Persistence gating + spend gating + freshness checks |
+| Deployment correlation | Yes | Evidence-backed score, explicitly non-causal |
+| Exposure calculation | Yes | Deterministic exposure model with persisted breakdown |
+| Incident lifecycle | Yes | detected -> acknowledged -> investigating -> recovered/resolved |
+| Recovery verification | Yes | Deterministic multi-interval recovery criteria |
+| Stale-source suppression | Yes | Rule suppression with reasons |
+| Grounded AI buyer brief | Yes (optional) | Schema-validated output + deterministic fallback |
+| Provider OAuth connectors | No | Simulated replay inputs for challenge demo |
+| Automatic campaign pausing | No | Intentionally excluded for operational safety |
 
 ## Architecture
 
-Modular monolith:
-- Web process: Next.js App Router pages + API routes
-- Worker process: job claiming + campaign evaluation pipeline
-- Database: PostgreSQL + Drizzle schema/migrations
+```mermaid
+flowchart LR
+  A[Ingestion APIs] --> B[(PostgreSQL)]
+  B --> C[Job Queue]
+  C --> D[Worker Evaluator]
+  D --> E[Rule Evaluations]
+  D --> F[Incidents + Evidence]
+  D --> G[Recovery Verification]
+  F --> H[Next.js Incident UI]
+  F --> I[Optional AI Buyer Brief]
+```
 
-Core flow:
-- Ingestion -> observation persistence -> job enqueue -> worker evaluate -> rule evaluation record -> incident + evidence -> recovery evaluation
+Runtime model:
 
-## Deterministic AI Boundary
+- Web: Next.js App Router pages + APIs
+- Worker: queued campaign evaluation + lifecycle updates
+- DB: PostgreSQL via Drizzle schema/migrations
 
-No LLM decides incidents, baselines, confidence, or exposure values. Detection and financial logic are deterministic TypeScript modules with tests.
+## Security Boundary
+
+- Ingestion endpoints require bearer token (`INGESTION_TOKEN`).
+- Incident logic reads persisted aggregates only (no lead PII required).
+- Worker error persistence is redacted.
+- Secrets are environment-scoped.
+- AI payloads are structured evidence only; no key or secret logging.
+- No automatic remediation actions in MVP.
+
+## Real vs Simulated
+
+Real:
+
+- ingestion API contracts;
+- persistence, idempotency, revision handling;
+- worker queue + retries;
+- deterministic rule and exposure logic;
+- deterministic correlation and recovery tracking;
+- UI workflow across incident states.
+
+Simulated:
+
+- campaign telemetry source values for replay;
+- deployment event feed input for demo;
+- external ad-platform connectors.
 
 ## Local Setup
 
-1. `cp .env.example .env`
-2. `pnpm install`
-3. Start PostgreSQL
-4. `pnpm db:migrate`
-5. `pnpm demo:replay`
-6. `pnpm dev`
+1. Install dependencies: `pnpm install`
+2. Start PostgreSQL: `docker compose up -d`
+3. Copy env: `cp .env.example .env`
+4. Run migration: `pnpm db:migrate`
+5. Start worker + web:
+   - `pnpm start:worker`
+   - `pnpm dev`
 
-## Railway Deployment
+## Environment Variables
 
-Create three Railway services:
-- PostgreSQL
-- Web service (`pnpm start:web`)
-- Worker service (`pnpm start:worker`)
+Required:
 
-Required env vars:
 - `DATABASE_URL`
 - `INGESTION_TOKEN`
 - `WORKER_ID`
 - `NODE_ENV`
 - `APP_BASE_URL`
 
-Run migration on deploy:
-- `pnpm db:migrate`
+Optional (AI brief):
 
-Health endpoints:
-- `/api/health`
-- `/api/healthz`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (default: `gpt-4.1-mini`)
 
-Custom domain setup:
-- Attach `catchdrift.media` to the web service in Railway domain settings.
+## Demo Instructions (Reset to Recovery)
 
-## Demo Replay
+1. Open homepage.
+2. Click **Run the 90-second protection demo**.
+3. Watch automatic transition from healthy baseline to detected incident.
+4. Review money-first incident summary, baseline comparison, trigger explanation, deployment correlation, and recovery evidence.
+5. Optionally generate an investigation brief.
+  - label is **AI-generated investigation brief** only when model output succeeds;
+  - otherwise label is **Deterministic investigation brief** using persisted evidence.
+6. Click **Replay Demo** from incident page to rerun and verify recovered state in exception queue.
 
-CLI commands:
+CLI equivalent:
+
 - `pnpm demo:reset`
 - `pnpm demo:replay`
 
-Expected output:
+## Test Commands
 
-```text
-✓ Demo workspace reset
-✓ Campaign mapping created
-✓ 12 healthy intervals ingested
-✓ Healthy evaluations completed without an incident
-✓ Deployment v42 recorded
-✓ First degraded interval matured — incident withheld
-✓ Second degraded interval matured — incident withheld
-✓ Third degraded interval matured
-✓ tracking_integrity_failure@1 triggered
-✓ Deployment v42 correlated
-✓ Exposure calculated at $230-$310/hour
-✓ Incident persisted with versioned evidence
-✓ Deployment v43 recorded
-✓ Recovery intervals ingested
-✓ Campaign recovered
-```
+- Typecheck: `pnpm typecheck`
+- Unit: `pnpm test:unit`
+- Integration: `pnpm test:integration`
+- E2E: `pnpm test:e2e`
+- Full suite: `pnpm test`
 
-## Testing
+## Contest Questions (Direct Answers)
 
-- Unit tests: baseline median, thresholds, maturity gating, exposure, correlation.
-- Integration tests: idempotency/revision semantics, dedup behavior, stale suppression semantics, recovery evidence preservation.
-- E2E test: demo replay through UI and incident lifecycle.
+### What does this tool do?
 
-Commands:
-- `pnpm test`
-- `pnpm test:e2e`
-- `pnpm typecheck`
-- `pnpm lint`
+CatchDrift detects active-spend tracking failures with deterministic rules, ties them to strongest correlated operational changes, estimates exposure, and verifies recovery while preserving immutable evidence.
 
-## Security
+### Why this problem?
 
-- Environment-scoped secrets only.
-- Bearer authentication for ingestion endpoints.
-- Bounded demo reset/replay endpoints for deterministic contest workflow.
-- Aggregate metric storage only (no lead PII).
-- Redacted worker error persistence (`last_error_redacted`).
-- Workspace-scoped queries.
-- Read-only operational stance for campaign systems.
+This is a high-cost failure mode in paid media: spend continues while tracking quality deteriorates. Detection delay creates avoidable exposure and poor optimization decisions. A lean team needs prioritized, evidence-backed exceptions, not another broad dashboard.
 
-## Known Limitations
+### What would I build next as full-time engineer?
 
-- Contest MVP uses one explicit campaign mapping.
-- One primary detection rule only: `tracking_integrity_failure@1`.
-- Controlled campaign data instead of live ad-platform connectors.
-- No automatic remediation actions.
-
-## What I Would Build Next
-
-1. Add read-only production connectors in priority order by financial impact.
-2. Expand deterministic rules from real incident history.
-3. Add operator workflow integrations (ticketing/Slack) with approval gates.
-4. Add stronger tenancy and RBAC controls for multi-workspace deployments.
+1. Buyer discovery sessions with It's Today Media operators.
+2. Read-only integrations for actual spend, attribution, revenue, deployment, and landing-page systems.
+3. Historical calibration for thresholds, confidence, and false-positive control.
+4. Delivery into existing workflow channels (Slack/ticketing) with acknowledgement loops.
+5. Second deterministic conversion-path integrity rule.
+6. Pilot measurement of false positives, time-to-detect, time-to-acknowledge, and potential avoided exposure.

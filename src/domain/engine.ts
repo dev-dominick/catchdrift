@@ -979,7 +979,24 @@ export async function getIncident(incidentId: string) {
     [incident.campaign_id],
   );
 
-  return { incident, evidence, events, timeline };
+  const sourceHealth = await query(
+    `select source, freshness_state, expected_delay_minutes, last_successful_event_at, latest_mature_interval_end
+     from source_health
+     where workspace_id = $1
+     order by source asc`,
+    [incident.workspace_id],
+  );
+
+  const deployments = await query(
+    `select id, source, external_deployment_id, version, deployed_at, changes_json
+     from deployment_events
+     where campaign_id = $1
+     order by deployed_at desc
+     limit 5`,
+    [incident.campaign_id],
+  );
+
+  return { incident, evidence, events, timeline, sourceHealth, deployments };
 }
 
 export async function updateIncidentStatus(params: {

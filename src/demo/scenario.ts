@@ -17,7 +17,7 @@ const METRIC_SOURCES: Record<string, string> = {
   revenue: "revenue",
 };
 
-type IntervalShape = {
+export type IntervalShape = {
   spend: number;
   paid_clicks: number;
   sessions: number;
@@ -26,7 +26,7 @@ type IntervalShape = {
   revenue: number;
 };
 
-const HEALTHY: IntervalShape = {
+export const HEALTHY: IntervalShape = {
   spend: 75,
   paid_clicks: 410,
   sessions: 394,
@@ -35,7 +35,7 @@ const HEALTHY: IntervalShape = {
   revenue: 105,
 };
 
-const DEGRADED: IntervalShape = {
+export const DEGRADED: IntervalShape = {
   spend: 75,
   paid_clicks: 415,
   sessions: 340,
@@ -44,7 +44,7 @@ const DEGRADED: IntervalShape = {
   revenue: 72,
 };
 
-const RECOVERY: IntervalShape = {
+export const RECOVERY: IntervalShape = {
   spend: 75,
   paid_clicks: 408,
   sessions: 392,
@@ -89,6 +89,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await out("✓ Campaign mapping created");
 
   const start = subMinutes(new Date(), 95);
+  let latestIncidentId: string | null = null;
 
   for (let i = 0; i < 12; i += 1) {
     const intervalStart = addMinutes(start, i * 5);
@@ -223,6 +224,21 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await out("✓ Exposure calculated at $230-$310/hour");
   await out("✓ Incident persisted with versioned evidence");
 
+  const detectedIncident = await queryOne<{ id: string }>(
+    `select id
+     from incidents
+     where campaign_id = $1
+     order by detected_at desc
+     limit 1`,
+    [campaignId],
+  );
+  latestIncidentId = detectedIncident?.id ?? null;
+
+  if (latestIncidentId) {
+    await out(`INCIDENT_ID:${latestIncidentId}`);
+    await out(`INCIDENT_URL:/incidents/${latestIncidentId}`);
+  }
+
   await ingestDeploymentEvent({
     source: "github",
     externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
@@ -281,6 +297,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   return {
     incidentCount: Number(incidents[0]?.count ?? "0"),
+    incidentId: latestIncidentId,
   };
 }
 

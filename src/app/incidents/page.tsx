@@ -1,5 +1,6 @@
 import { ExceptionQueue } from "@/components/exception-queue";
 import { getHealthyCampaignStatus, listExceptionQueue } from "@/domain/engine";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export default async function IncidentsPage() {
         <p className="mt-2 text-sm text-slate-600">
           Actionable incidents are shown first. Healthy campaigns are listed separately.
         </p>
+        <Link href="/" className="mt-3 inline-block text-sm font-medium text-slate-800 underline">
+          Back to guided 90-second protection demo
+        </Link>
       </header>
 
       <ExceptionQueue incidents={incidents as never[]} />

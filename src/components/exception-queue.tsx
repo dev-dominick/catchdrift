@@ -25,7 +25,17 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
   if (incidents.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-        No actionable incidents. CatchDrift has not detected active tracking integrity failures.
+        <p className="font-medium text-slate-900">Campaign state is currently healthy.</p>
+        <p className="mt-2">
+          No actionable incidents are open. Run the failure simulation to demonstrate deployment-aware
+          detection, exposure estimation, and recovery verification.
+        </p>
+        <Link
+          href="/"
+          className="mt-4 inline-flex rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+        >
+          Run failure simulation
+        </Link>
       </div>
     );
   }
