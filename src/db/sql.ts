@@ -43,3 +43,42 @@ export async function withAdvisoryLock<T>(
     client.release();
   }
 }
+
+export async function withTransaction<T>(
+  action: (tx: {
+    query: <R extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) => Promise<R[]>;
+    queryOne: <R extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) => Promise<R | null>;
+  }) => Promise<T>,
+): Promise<T> {
+  type TxQuery = <R extends QueryResultRow = QueryResultRow>(text: string, values?: unknown[]) => Promise<R[]>;
+  type TxQueryOne = <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ) => Promise<R | null>;
+
+  const client = await getPool().connect();
+
+  try {
+    await client.query("begin");
+
+    const tx: { query: TxQuery; queryOne: TxQueryOne } = {
+      query: async (text, values = []) => {
+        const result = await client.query(text, values);
+        return result.rows;
+      },
+      queryOne: async (text, values = []) => {
+        const result = await client.query(text, values);
+        return result.rows[0] ?? null;
+      },
+    };
+
+    const result = await action(tx);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

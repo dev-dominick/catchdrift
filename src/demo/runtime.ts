@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runDemoReplay } from "@/demo/scenario";
 import { query, queryOne, withAdvisoryLock } from "@/db/sql";
+import { getEnv } from "@/lib/env";
+import { logger } from "@/infrastructure/logging/logger";
 
 const DEMO_LOCK_ID = 4242001;
 const SESSION_COOKIE = "catchdrift_demo_session";
@@ -67,10 +69,11 @@ export function getOrCreateDemoSession(request: NextRequest): { sessionId: strin
 }
 
 export function attachDemoSessionCookie(response: NextResponse, sessionId: string): NextResponse {
+  const env = getEnv();
   response.cookies.set(SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
@@ -288,10 +291,11 @@ export async function startReplayForSession(
       await completeReplayRun(runId);
     } catch (error) {
       const reference = buildPublicErrorReference();
-      console.error("demo-replay-failed", {
+      logger.error("demo-replay-failed", {
         runId,
         reference,
         error: error instanceof Error ? error.message : "unknown",
+        operation: "demo.replay",
       });
       await failReplayRun(runId, reference);
     }

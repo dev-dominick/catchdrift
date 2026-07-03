@@ -4,24 +4,32 @@ import {
   getOrCreateDemoSession,
   startReplayForSession,
 } from "@/demo/runtime";
+import {
+  conflictError,
+  dependencyUnavailableError,
+  rateLimitError,
+} from "@/shared/errors/app-error";
+import { errorJson } from "@/shared/http/api-response";
+import { getRequestId } from "@/shared/http/request-context";
+import { logger } from "@/infrastructure/logging/logger";
+import { getEnv } from "@/lib/env";
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
   const { sessionId } = getOrCreateDemoSession(request);
+  const env = getEnv();
   const forceFailure =
-    process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("forceFailure") === "1";
+    env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("forceFailure") === "1";
   try {
     const started = await startReplayForSession(sessionId, { forceFailure });
 
     if (!started.ok) {
-      const response = NextResponse.json(
-        {
-          error: {
-            code: started.code,
-            message: started.message,
-          },
-        },
-        { status: started.status },
-      );
+      const err =
+        started.status === 429
+          ? rateLimitError(started.code, started.message)
+          : conflictError(started.code, started.message);
+
+      const response = errorJson(err, { requestId });
       return attachDemoSessionCookie(response, sessionId);
     }
 
@@ -36,15 +44,10 @@ export async function POST(request: NextRequest) {
 
     return attachDemoSessionCookie(response, sessionId);
   } catch {
-    const reference = `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    const response = NextResponse.json(
-      {
-        error: {
-          code: "DEMO_REPLAY_START_FAILED",
-          message: `Replay could not be started. Retry with reference ${reference}.`,
-        },
-      },
-      { status: 503 },
+    logger.error("demo-replay-start-failed", { requestId, sessionId, operation: "demo.replay.start" });
+    const response = errorJson(
+      dependencyUnavailableError("DEMO_REPLAY_START_FAILED", "Replay could not be started. Retry shortly."),
+      { requestId },
     );
     return attachDemoSessionCookie(response, sessionId);
   }

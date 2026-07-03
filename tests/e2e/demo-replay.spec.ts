@@ -1,16 +1,45 @@
+import "dotenv/config";
 import { expect, test, type Page } from "@playwright/test";
+import { ensureDemoWorkspaceAndCampaign, resetDemoWorkspace } from "../../src/domain/engine";
+import { query } from "../../src/db/sql";
+import { DEMO_WORKSPACE_SLUG } from "../../src/lib/constants";
 
 async function resetDemoViaApi(page: Page) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const response = await page.request.post("/api/demo/test/hard-reset");
-    if (response.status() === 200) {
-      return;
-    }
+  void page;
+  await resetDemoWorkspace();
+  await ensureDemoWorkspaceAndCampaign();
+  await query(`delete from demo_runs`);
+}
 
-    await page.waitForTimeout(1000);
-  }
-
-  throw new Error("Unable to reset demo after retries");
+async function forceStaleRevenueSource(): Promise<void> {
+  await query(
+    `insert into source_health (
+       workspace_id,
+       source,
+       expected_delay_minutes,
+       last_successful_event_at,
+       latest_mature_interval_end,
+       freshness_state,
+       connector_state
+     )
+     values (
+       (select id from workspaces where slug = $1),
+       'revenue',
+       20,
+       now() - interval '90 minutes',
+       now() - interval '90 minutes',
+       'stale',
+       'healthy'
+     )
+     on conflict (workspace_id, source)
+     do update set
+       last_successful_event_at = excluded.last_successful_event_at,
+       latest_mature_interval_end = excluded.latest_mature_interval_end,
+       freshness_state = excluded.freshness_state,
+       connector_state = excluded.connector_state,
+       updated_at = now()`,
+    [DEMO_WORKSPACE_SLUG],
+  );
 }
 
 test("replay reaches active incident then recovered within bounded runtime", async ({ page }) => {
@@ -162,7 +191,7 @@ test("stale source suppression is visible", async ({ page }) => {
   await page.goto("/");
   await resetDemoViaApi(page);
 
-  await page.request.post("/api/demo/test/stale-source");
+  await forceStaleRevenueSource();
   await page.goto("/sources");
   await expect(page.getByText(/Automated incident decisions suppressed for safety/i)).toBeVisible();
 });

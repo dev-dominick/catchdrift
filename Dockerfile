@@ -1,6 +1,7 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN corepack enable
+RUN apk add --no-cache bash
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./

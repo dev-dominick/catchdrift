@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIncident } from "@/domain/engine";
 import { generateBuyerBrief, type BuyerBriefEvidencePayload } from "@/lib/buyer-brief";
+import { dependencyUnavailableError, notFoundError } from "@/shared/errors/app-error";
+import { errorJson } from "@/shared/http/api-response";
+import { getRequestId } from "@/shared/http/request-context";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -10,13 +13,14 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ incidentId: string }> },
 ) {
-  void request;
-  const { incidentId } = await context.params;
+  const requestId = getRequestId(request);
+  try {
+    const { incidentId } = await context.params;
 
-  const data = await getIncident(incidentId);
-  if (!data) {
-    return NextResponse.json({ error: "Incident not found" }, { status: 404 });
-  }
+    const data = await getIncident(incidentId);
+    if (!data) {
+      return errorJson(notFoundError("INCIDENT_NOT_FOUND", "Incident not found."), { requestId });
+    }
 
   const baseline = asRecord(
     data.evidence.find((item) => String(item.evidence_type) === "baseline")?.evidence_json,
@@ -97,10 +101,16 @@ export async function GET(
           },
   };
 
-  const brief = await generateBuyerBrief(payload);
+    const brief = await generateBuyerBrief(payload);
 
-  return NextResponse.json({
-    brief,
-    evidence: payload,
-  });
+    return NextResponse.json({
+      brief,
+      evidence: payload,
+    });
+  } catch {
+    return errorJson(
+      dependencyUnavailableError("BUYER_BRIEF_FAILED", "Buyer brief is temporarily unavailable."),
+      { requestId },
+    );
+  }
 }

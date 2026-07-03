@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { Pool } from "pg";
+import { Client } from "pg";
 
 type Journal = {
   entries: Array<{
@@ -17,13 +17,16 @@ function splitStatements(sql: string): string[] {
     .filter((chunk) => chunk.length > 0);
 }
 
+const MIGRATION_LOCK_ID = 42424001;
+
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is required for migrations");
   }
 
-  const pool = new Pool({ connectionString });
+  const client = new Client({ connectionString });
+  await client.connect();
 
   try {
     const journalPath = path.resolve("src/db/migrations/meta/_journal.json");
@@ -31,7 +34,9 @@ async function main() {
 
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as Journal;
 
-    await pool.query(`
+    await client.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_ID]);
+
+    await client.query(`
       create table if not exists __drizzle_migrations (
         id serial primary key,
         hash text not null unique,
@@ -41,7 +46,7 @@ async function main() {
 
     for (const entry of journal.entries) {
       const migrationId = entry.tag;
-      const exists = await pool.query<{ hash: string }>(
+      const exists = await client.query<{ hash: string }>(
         `select hash from __drizzle_migrations where hash = $1 limit 1`,
         [migrationId],
       );
@@ -54,7 +59,6 @@ async function main() {
       const sql = readFileSync(sqlPath, "utf8");
       const statements = splitStatements(sql);
 
-      const client = await pool.connect();
       try {
         await client.query("begin");
         for (const statement of statements) {
@@ -67,9 +71,9 @@ async function main() {
         await client.query("commit");
       } catch (error) {
         await client.query("rollback");
-        throw error;
-      } finally {
-        client.release();
+        throw new Error(
+          `Migration ${migrationId} failed: ${error instanceof Error ? error.message : "unknown error"}`,
+        );
       }
 
       console.log(`Applied migration ${migrationId}`);
@@ -77,7 +81,12 @@ async function main() {
 
     console.log("Migrations applied successfully");
   } finally {
-    await pool.end();
+    try {
+      await client.query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]);
+    } catch {
+      // Ignore unlock failures on teardown.
+    }
+    await client.end();
   }
 }
 

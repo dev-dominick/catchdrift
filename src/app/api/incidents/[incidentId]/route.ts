@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { updateIncidentStatus } from "@/domain/engine";
+import { errorJson } from "@/shared/http/api-response";
+import { getRequestId } from "@/shared/http/request-context";
+import { dependencyUnavailableError, validationError } from "@/shared/errors/app-error";
 
 const actionSchema = z.object({
   action: z.enum(["acknowledge", "investigate", "dismiss", "resolve"]),
@@ -10,25 +13,28 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ incidentId: string }> },
 ) {
+  const requestId = getRequestId(request);
   const body = await request.json().catch(() => null);
   const parsed = actionSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid incident action.",
-        details: parsed.error.flatten(),
-      },
-      { status: 400 },
-    );
+    return errorJson(validationError("INVALID_INCIDENT_ACTION", "Invalid incident action."), {
+      requestId,
+    });
   }
 
   const { incidentId } = await context.params;
+  try {
+    await updateIncidentStatus({
+      incidentId,
+      action: parsed.data.action,
+    });
 
-  await updateIncidentStatus({
-    incidentId,
-    action: parsed.data.action,
-  });
-
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return errorJson(
+      dependencyUnavailableError("INCIDENT_ACTION_FAILED", "Incident action could not be completed."),
+      { requestId },
+    );
+  }
 }

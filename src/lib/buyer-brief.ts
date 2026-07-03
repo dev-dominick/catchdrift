@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getEnv } from "@/lib/env";
 
 const modelResponseSchema = z.object({
   summary: z.string().min(1),
@@ -116,7 +117,8 @@ export async function generateBuyerBrief(
   evidence: BuyerBriefEvidencePayload,
   options?: { timeoutMs?: number },
 ): Promise<BuyerBriefResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const env = getEnv();
+  const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return fallbackBrief(evidence, "OPENAI_API_KEY missing");
   }
@@ -134,7 +136,7 @@ export async function generateBuyerBrief(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+        model: env.OPENAI_MODEL,
         temperature: 0,
         response_format: {
           type: "json_schema",

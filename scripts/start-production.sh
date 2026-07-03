@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 case "${RAILWAY_SERVICE_NAME:-}" in
   catchdrift-worker)

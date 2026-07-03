@@ -5,8 +5,17 @@ import {
   getOrCreateDemoSession,
   resetForSession,
 } from "@/demo/runtime";
+import {
+  conflictError,
+  dependencyUnavailableError,
+  rateLimitError,
+} from "@/shared/errors/app-error";
+import { errorJson } from "@/shared/http/api-response";
+import { getRequestId } from "@/shared/http/request-context";
+import { logger } from "@/infrastructure/logging/logger";
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request);
   const { sessionId } = getOrCreateDemoSession(request);
   try {
     const result = await resetForSession(sessionId, async () => {
@@ -15,15 +24,11 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.ok) {
-      const response = NextResponse.json(
-        {
-          error: {
-            code: result.code,
-            message: result.message,
-          },
-        },
-        { status: result.status },
-      );
+      const err =
+        result.status === 429
+          ? rateLimitError(result.code, result.message)
+          : conflictError(result.code, result.message);
+      const response = errorJson(err, { requestId });
       return attachDemoSessionCookie(response, sessionId);
     }
 
@@ -33,15 +38,10 @@ export async function POST(request: NextRequest) {
     );
     return attachDemoSessionCookie(response, sessionId);
   } catch {
-    const reference = `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    const response = NextResponse.json(
-      {
-        error: {
-          code: "DEMO_RESET_FAILED",
-          message: `Reset could not be completed. Retry with reference ${reference}.`,
-        },
-      },
-      { status: 503 },
+    logger.error("demo-reset-failed", { requestId, sessionId, operation: "demo.reset" });
+    const response = errorJson(
+      dependencyUnavailableError("DEMO_RESET_FAILED", "Reset could not be completed. Retry shortly."),
+      { requestId },
     );
     return attachDemoSessionCookie(response, sessionId);
   }

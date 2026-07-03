@@ -13,7 +13,7 @@ import {
   SOURCE_EXPECTED_DELAYS_MINUTES,
 } from "@/lib/constants";
 import { stableHash } from "@/lib/hash";
-import { query, queryOne } from "@/db/sql";
+import { query, queryOne, withTransaction } from "@/db/sql";
 import type { Baseline, CorrelationScore, IntervalAggregate } from "@/domain/types";
 import { calculateExposureRange, dollarsToMinorUnits } from "@/domain/exposure";
 import { scoreDeploymentCandidate, type DeploymentChange } from "@/domain/correlation";
@@ -651,41 +651,6 @@ async function createIncident(params: {
 
   const confidence = correlation.score && correlation.score.total >= 80 ? "high" : "medium";
 
-  const incident = await queryOne<{ id: string }>(
-    `insert into incidents (
-      workspace_id,
-      campaign_id,
-      rule_id,
-      rule_version,
-      deduplication_key,
-      severity,
-      confidence,
-      status,
-      exposure_low_minor,
-      exposure_high_minor,
-      exposure_unit,
-      currency,
-      detected_at
-    ) values ($1,$2,$3,$4,$5,$6,$7,'detected',$8,$9,'hour',$10,now())
-    returning id`,
-    [
-      params.workspaceId,
-      params.campaignId,
-      RULE_ID,
-      RULE_VERSION,
-      deduplicationKey,
-      severity,
-      confidence,
-      dollarsToMinorUnits(exposure.low),
-      dollarsToMinorUnits(exposure.high),
-      params.currency,
-    ],
-  );
-
-  if (!incident) {
-    throw new Error("Failed to create incident.");
-  }
-
   const evidenceRows = [
     {
       type: "baseline",
@@ -721,29 +686,68 @@ async function createIncident(params: {
     },
   ];
 
-  for (const row of evidenceRows) {
-    await query(
-      `insert into incident_evidence (incident_id, evidence_type, evidence_json, immutable)
-       values ($1, $2, $3::jsonb, true)`,
-      [incident.id, row.type, JSON.stringify(row.json)],
+  const incidentId = await withTransaction(async (tx) => {
+    const incident = await tx.queryOne<{ id: string }>(
+      `insert into incidents (
+        workspace_id,
+        campaign_id,
+        rule_id,
+        rule_version,
+        deduplication_key,
+        severity,
+        confidence,
+        status,
+        exposure_low_minor,
+        exposure_high_minor,
+        exposure_unit,
+        currency,
+        detected_at
+      ) values ($1,$2,$3,$4,$5,$6,$7,'detected',$8,$9,'hour',$10,now())
+      returning id`,
+      [
+        params.workspaceId,
+        params.campaignId,
+        RULE_ID,
+        RULE_VERSION,
+        deduplicationKey,
+        severity,
+        confidence,
+        dollarsToMinorUnits(exposure.low),
+        dollarsToMinorUnits(exposure.high),
+        params.currency,
+      ],
     );
-  }
 
-  await query(
-    `insert into incident_events (incident_id, event_type, actor_type, details_json)
-     values ($1, 'created', 'system', $2::jsonb)`,
-    [
-      incident.id,
-      JSON.stringify({
-        ruleId: RULE_ID,
-        ruleVersion: RULE_VERSION,
-        degradedStreakCount: params.degradedStreakCount,
-      }),
-    ],
-  );
+    if (!incident) {
+      throw new Error("Failed to create incident.");
+    }
+
+    for (const row of evidenceRows) {
+      await tx.query(
+        `insert into incident_evidence (incident_id, evidence_type, evidence_json, immutable)
+         values ($1, $2, $3::jsonb, true)`,
+        [incident.id, row.type, JSON.stringify(row.json)],
+      );
+    }
+
+    await tx.query(
+      `insert into incident_events (incident_id, event_type, actor_type, details_json)
+       values ($1, 'created', 'system', $2::jsonb)`,
+      [
+        incident.id,
+        JSON.stringify({
+          ruleId: RULE_ID,
+          ruleVersion: RULE_VERSION,
+          degradedStreakCount: params.degradedStreakCount,
+        }),
+      ],
+    );
+
+    return incident.id;
+  });
 
   return {
-    incidentId: incident.id,
+    incidentId,
     exposureLabel: `$${Math.round(exposure.low)}-$${Math.round(exposure.high)}/hour`,
     correlationScore: correlation.score?.total ?? null,
   };
