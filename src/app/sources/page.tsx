@@ -12,14 +12,20 @@ export default async function SourcesPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">Data health</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Source freshness determines whether new incidents can be evaluated.
+          Replay dataset status, live integration readiness, and historical incident evidence are
+          separated below.
         </p>
       </header>
 
+      <p className="mb-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+        Demo dataset - replay completed. Historical replay evidence remains available even when the
+        dataset is not receiving new events.
+      </p>
+
       {suppressed ? (
         <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
-          Detection paused. CatchDrift is waiting for fresh campaign data. Existing incidents
-          remain available, but no new incidents will be created until required sources recover.
+          Live decisioning paused. Required live sources are stale, so new incidents are suppressed
+          until fresh data returns.
         </p>
       ) : null}
 

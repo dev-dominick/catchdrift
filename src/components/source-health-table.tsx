@@ -64,8 +64,9 @@ export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
               <td className="px-4 py-3">{row.expected_delay_minutes} min</td>
               <td className="px-4 py-3">
                 <div className="font-medium text-slate-900">
-                  {row.suppresses_decisions ? "Stale" : "Fresh"}
+                  {row.suppresses_decisions ? "Live integration stale" : "Live integration fresh"}
                 </div>
+                <div className="text-xs text-slate-600">Replay evidence remains queryable</div>
                 {typeof row.overdue_minutes === "number" && row.overdue_minutes > 0 ? (
                   <div className="text-xs text-slate-600">{row.overdue_minutes} min overdue</div>
                 ) : null}

@@ -4,7 +4,8 @@ import { EvidenceTimeline } from "@/components/evidence-timeline";
 import { IncidentActions } from "@/components/incident-actions";
 import { IncidentLiveRefresh } from "@/components/incident-live-refresh";
 import { getIncident } from "@/domain/engine";
-import { exposureLabel, formatMoney, formatPercent } from "@/lib/format";
+import { DEMO_STORY } from "@/lib/constants";
+import { exposureLabel, formatMoney, formatMoneyMinor, formatPercent } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -206,10 +207,25 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
   const latestCorrectiveDeployment = (deployments as Array<Record<string, unknown>>).find(
     (item) => String(item.version) !== String(deploymentCandidate?.version),
   );
+  const timelineMarkers = [
+    deploymentCandidate?.deployed_at
+      ? { timestamp: String(deploymentCandidate.deployed_at), label: "Deployment" }
+      : null,
+    incident.detected_at
+      ? { timestamp: String(incident.detected_at), label: "Incident detected" }
+      : null,
+    latestCorrectiveDeployment?.deployed_at
+      ? { timestamp: String(latestCorrectiveDeployment.deployed_at), label: "Fix applied" }
+      : null,
+    incident.recovered_at
+      ? { timestamp: String(incident.recovered_at), label: "Recovery verified" }
+      : null,
+  ].filter((value): value is { timestamp: string; label: string } => value !== null);
 
   const summary = `Paid traffic continued at ${formatMoney(
     baseline.hourlySpend,
   )}/hour, but attributed conversions fell from ${baselineAttributed} to ${degradedAttributed}. The strongest related change was deployment ${deploymentCandidate?.version ?? "v42"}, which removed the click ID from the landing-page redirect.`;
+  const executiveSummary = `CatchDrift identified this failure ${DEMO_STORY.detectionMinutes} minutes after deployment abc123, with ${formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} of spend currently exposed and ${formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)} in potential daily exposure.`;
 
   const freshnessAtEvaluation = evaluationFreshness
     ? evaluationFreshness.fresh
@@ -231,8 +247,61 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         <p className="mt-2 inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
           {normalizeStatus(String(incident.status))}
         </p>
-        <p className="mt-3 text-sm leading-6 text-slate-700">{summary}</p>
+        <p className="mt-3 text-sm leading-6 text-slate-700">{executiveSummary}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{summary}</p>
       </header>
+
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <MetricTile label="Spend protected" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
+        <MetricTile label="Time to detection" value={`${DEMO_STORY.detectionMinutes} min`} />
+        <MetricTile label="Campaigns monitored" value={String(DEMO_STORY.campaignsMonitored)} />
+        <MetricTile label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
+        <MetricTile label="Incident cause" value="Deployment abc123" />
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-rose-900">Executive incident brief</h2>
+        <p className="mt-3 text-sm text-rose-900">
+          CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
+          Spend and clicks remained normal, but attributed sessions dropped 82% following deployment
+          abc123. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}.
+          Recommended action: verify the landing-page tracking script introduced by deployment abc123.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <NarrativeTile
+            title="Why we believe this"
+            body="Signal degradation exceeded threshold and persisted for required intervals while spend remained active."
+          />
+          <NarrativeTile
+            title="Evidence"
+            body="Spend and clicks stayed flat while sessions and attributed conversions dropped immediately after deployment."
+          />
+          <NarrativeTile
+            title="Recommended investigation"
+            body="Confirm click_id forwarding in redirect behavior, script load order, and attribution parameter handling."
+          />
+          <NarrativeTile
+            title="What CatchDrift intentionally did not automate"
+            body="CatchDrift did not pause campaigns, edit spend, or auto-rollback deployment changes."
+          />
+        </div>
+      </section>
+
+      {(String(incident.status) === "recovered" || String(incident.status) === "resolved") ? (
+        <section className="mb-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-emerald-900">Incident resolved</h2>
+          <p className="mt-2 text-sm text-emerald-900">
+            CatchDrift verified that session and conversion signals returned to expected range for
+            three consecutive evaluation windows.
+          </p>
+          <ul className="mt-3 space-y-1 text-sm text-emerald-900">
+            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}</li>
+            <li>Potential daily exposure: {formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)}</li>
+            <li>Detection time: {DEMO_STORY.detectionMinutes} minutes</li>
+          </ul>
+        </section>
+      ) : null}
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Release change</h2>
@@ -392,7 +461,7 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
                 Baseline and degraded intervals with spend, revenue, click loss, and attribution rate.
               </p>
               <div className="mt-4">
-                <EvidenceTimeline rows={timeline as never[]} />
+                <EvidenceTimeline rows={timeline as never[]} markers={timelineMarkers} />
               </div>
             </section>
 
@@ -406,6 +475,24 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
         </section>
       </div>
     </div>
+  );
+}
+
+function MetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-base font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function NarrativeTile({ title, body }: { title: string; body: string }) {
+  return (
+    <article className="rounded-xl border border-rose-200 bg-white p-3">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-700">{body}</p>
+    </article>
   );
 }
 

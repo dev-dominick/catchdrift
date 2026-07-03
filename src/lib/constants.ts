@@ -54,3 +54,12 @@ export const RECOVERABLE_INCIDENT_STATUSES = [
   "acknowledged",
   "investigating",
 ] as const;
+
+export const DEMO_STORY = {
+  detectionMinutes: 14,
+  estimatedExposureMinor: 64000,
+  potentialDailyExposureMinor: 384000,
+  campaignsMonitored: 1,
+  incidentCause: "Landing-page redirect removed click_id forwarding in deployment abc123.",
+  incidentCauseShort: "Deployment abc123 removed click_id forwarding.",
+} as const;
