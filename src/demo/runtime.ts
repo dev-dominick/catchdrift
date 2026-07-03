@@ -36,7 +36,7 @@ function buildPublicErrorReference(): string {
   return `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
-function classifyStage(line: string): { stageKey: string; stageLabel: string; stageIndex: number } {
+function classifyStage(line: string): { stageKey: string; stageLabel: string; stageIndex: number } | null {
   if (line.includes("Healthy evaluations completed")) {
     return { stageKey: "healthy", stageLabel: "Healthy", stageIndex: 1 };
   }
@@ -56,7 +56,7 @@ function classifyStage(line: string): { stageKey: string; stageLabel: string; st
     return { stageKey: "recovery_verified", stageLabel: "Recovery verified", stageIndex: 6 };
   }
 
-  return { stageKey: "starting", stageLabel: "Starting replay", stageIndex: 0 };
+  return null;
 }
 
 export function getOrCreateDemoSession(request: NextRequest): { sessionId: string; isNew: boolean } {
@@ -168,15 +168,15 @@ async function appendRunLine(runId: string, line: string): Promise<void> {
 
   await query(
     `update demo_runs
-     set stage_key = $2,
-         stage_label = $3,
-         stage_index = greatest(stage_index, $4),
+     set stage_key = coalesce($2, stage_key),
+         stage_label = coalesce($3, stage_label),
+         stage_index = greatest(stage_index, coalesce($4, stage_index)),
          incident_id = coalesce($5, incident_id),
          incident_url = coalesce($6, incident_url),
          log_lines = coalesce(log_lines, '[]'::jsonb) || to_jsonb(array[$7]::text[]),
          updated_at = now()
      where id = $1`,
-    [runId, stage.stageKey, stage.stageLabel, stage.stageIndex, incidentId, incidentUrl, line],
+    [runId, stage?.stageKey ?? null, stage?.stageLabel ?? null, stage?.stageIndex ?? null, incidentId, incidentUrl, line],
   );
 }
 

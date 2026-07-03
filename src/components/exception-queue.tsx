@@ -35,14 +35,14 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Campaign state is currently healthy.</p>
         <p className="mt-2">
-          No actionable incidents are open. Run the failure simulation to demonstrate deployment-aware
+          No actionable incidents are open. Run the incident replay to demonstrate deployment-aware
           detection, exposure estimation, and recovery verification.
         </p>
         <Link
           href="/"
           className="mt-4 inline-flex rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
         >
-          Run failure simulation
+          Run the 25-second incident replay
         </Link>
       </div>
     );
@@ -97,9 +97,9 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
                       <p className="mt-1 text-sm text-slate-700">
                         Exposure rate: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
                       </p>
-                      <p className="mt-1 text-sm text-slate-700">Spend rate: estimated $900/hour</p>
+                      <p className="mt-1 text-sm text-slate-700">Spend remained active during the detection window.</p>
                       <p className="mt-1 text-sm text-slate-700">Age: {Math.max(0, age)} minutes</p>
-                      <p className="mt-1 text-sm text-slate-700">Correlated change: Deployment v42 (strongest correlation)</p>
+                      <p className="mt-1 text-sm text-slate-700">Correlated change: strongest deployment correlation shown in incident detail.</p>
                       <p className="mt-1 text-sm text-slate-700">Next action: validate redirect tracking and attribution payloads.</p>
 
                       <Link href={`/incidents/${incident.id}`} className="mt-2 inline-block text-sm font-medium text-slate-800 underline">

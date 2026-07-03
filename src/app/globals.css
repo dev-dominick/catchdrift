@@ -15,7 +15,11 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 480px at 20% -10%, rgba(148, 163, 184, 0.2), transparent 60%),
+    radial-gradient(900px 420px at 100% -20%, rgba(226, 232, 240, 0.6), transparent 65%),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), "Avenir Next", "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
 }

@@ -26,7 +26,7 @@ export default function ArchitecturePage() {
       </section>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">What is simulated</h2>
+        <h2 className="text-lg font-semibold text-slate-900">What is replay-controlled</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
           <li>Campaign source data values are controlled for deterministic contest replay.</li>
           <li>Provider OAuth connectors for ad and affiliate platforms are not included.</li>

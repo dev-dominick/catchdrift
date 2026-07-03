@@ -1,6 +1,6 @@
 # CatchDrift
 
-CatchDrift is a deployment-aware campaign protection system for media-buying teams. It detects tracking-integrity failures while paid spend is still active, preserves evidence, estimates exposure, and verifies recovery.
+CatchDrift detects when tracking breaks during active campaign spend, estimates financial exposure, and verifies recovery before manual reporting catches up.
 
 ## Submission in 30 seconds
 
@@ -9,7 +9,30 @@ CatchDrift is a deployment-aware campaign protection system for media-buying tea
 - Repository: https://github.com/dev-dominick/catchdrift
 - Demo path: homepage -> run live replay -> incident appears active -> recovery verified on incident page
 
-## What it does
+## The expensive operational problem
+
+Paid campaigns can continue spending while attribution quality silently degrades after landing-page or tracking changes. Teams often see performance symptoms later in dashboards, but not fast enough to connect:
+
+- money at risk while spend stays active;
+- the likely operational change;
+- what to inspect first;
+- whether recovery is actually complete.
+
+CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
+
+## Demo outcome and financial exposure
+
+Example from deterministic replay profile:
+
+- Active spend at risk: $900/hour
+- Estimated exposure rate: $230-$310/hour
+- Detection window: 3 degraded intervals (15 minutes in replay)
+- Expected manual discovery delay: 90 minutes
+- Exposure surfaced earlier: $344-$465
+
+Demo estimates are based on the controlled replay scenario. They are estimated exposure signals, not confirmed money saved.
+
+## How the workflow works
 
 CatchDrift continuously evaluates campaign telemetry and deployment events, then opens a deterministic incident when all required conditions persist:
 
@@ -29,25 +52,11 @@ When triggered, CatchDrift records immutable incident evidence:
 
 It then tracks lifecycle transitions from detected to recovered/resolved and verifies recovery using explicit metric criteria.
 
-## Why this problem
+## Why this matters to It's Today Media
 
-Paid campaigns can continue spending while attribution quality silently degrades after operational changes. Teams often see symptoms in dashboards but do not quickly connect:
+It's Today Media operates high-tempo media buying across multiple channels where landing pages, tracking integrity, and attribution quality directly affect spend efficiency. CatchDrift protects the gap between an operational tracking failure and when a buyer would otherwise discover it from delayed reporting.
 
-- financial risk;
-- probable operational change;
-- safe investigation sequence.
-
-CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
-
-The challenge required independent problem selection. I selected this hypothesis from It's Today Media's described media-buying workflow. My first full-time step would be validating its frequency, cost, current response process, and false-positive tolerance with media buyers before expanding implementation.
-
-## What I would build next
-
-1. Operator discovery interviews to calibrate detection thresholds and alert fatigue tolerance.
-2. Connector ingestion from real ad, attribution, and deployment systems.
-3. Channel delivery into Slack/ticketing with acknowledgement loops.
-4. Additional deterministic rules for conversion-path integrity variants.
-5. Outcome instrumentation for time-to-detect, time-to-acknowledge, and estimated exposure surfaced.
+The first production rollout would calibrate thresholds against It's Today Media's campaign volume, reporting latency, deployment cadence, and acceptable false-positive rate.
 
 ## Run the live demo
 
@@ -61,17 +70,15 @@ CLI equivalent:
 - `pnpm demo:reset`
 - `pnpm demo:replay`
 
-## Why the buyer cares
+## What I would build next
 
-Example from deterministic replay profile:
+1. Operator discovery interviews to calibrate detection thresholds and alert fatigue tolerance.
+2. Connector ingestion from real ad, attribution, and deployment systems.
+3. Channel delivery into Slack/ticketing with acknowledgement loops.
+4. Additional deterministic rules for conversion-path integrity variants.
+5. Outcome instrumentation for time-to-detect, time-to-acknowledge, and estimated exposure surfaced.
 
-- Estimated exposure rate: $230-$310/hour
-- Manual discovery assumption: 90 minutes later
-- Potential additional exposure surfaced earlier: $344-$465
-
-This is not confirmed money saved. It is estimated exposure surfaced while failure could otherwise remain unnoticed.
-
-## Real versus simulated
+## Real versus replay-controlled
 
 Real:
 
@@ -83,10 +90,10 @@ Real:
 - asynchronous replay run-state contracts (202/200/409/429);
 - UI workflow across incident states.
 
-Simulated:
+Replay-controlled:
 
 - campaign telemetry source values for replay;
-- deployment event feed input for demo;
+- deployment event feed input for replay;
 - external ad-platform connectors.
 
 ## Architecture

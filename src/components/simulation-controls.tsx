@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type SimulationState = "idle" | "running" | "done" | "error";
 
@@ -23,26 +23,65 @@ type ReplayRunStatus = {
 };
 
 const STAGES = [
-  "Healthy",
-  "Deployment",
-  "Degradation",
-  "Incident detected",
-  "Corrective deployment",
-  "Recovery verified",
+  {
+    label: "Campaign healthy",
+    detail: "Baseline metrics are stable before any operational change.",
+  },
+  {
+    label: "Landing-page release deployed",
+    detail: "A tracked operational change is recorded for correlation.",
+  },
+  {
+    label: "Attribution begins degrading",
+    detail: "Clicks remain active while sessions and attributed conversions decline.",
+  },
+  {
+    label: "CatchDrift opens an incident",
+    detail: "Persistent degradation triggers deterministic incident creation.",
+  },
+  {
+    label: "Exposure continues accumulating",
+    detail: "CatchDrift quantifies estimated exposure while spend remains active.",
+  },
+  {
+    label: "Recovery verified",
+    detail: "Metrics return to expected ranges across required recovery intervals.",
+  },
 ];
+
+const STAGE_LABEL_BY_KEY: Record<string, string> = {
+  healthy: "Campaign healthy",
+  deployment: "Landing-page release deployed",
+  degradation: "Attribution begins degrading",
+  incident_detected: "CatchDrift opens an incident",
+  corrective_deployment: "Exposure continues accumulating",
+  recovery_verified: "Recovery verified",
+};
 
 export function SimulationControls() {
   const router = useRouter();
   const [state, setState] = useState<SimulationState>("idle");
   const [lines, setLines] = useState<string[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string>("Ready to run deterministic demo replay.");
+  const [statusMessage, setStatusMessage] = useState<string>(
+    "Demo ready. Replay a deterministic incident from healthy baseline through verified recovery.",
+  );
   const [activeStage, setActiveStage] = useState<number>(0);
+  const [incidentUrl, setIncidentUrl] = useState<string | null>(null);
+  const pollSessionRef = useRef(0);
 
   const running = useMemo(() => state === "running", [state]);
 
+  useEffect(() => {
+    return () => {
+      pollSessionRef.current += 1;
+    };
+  }, []);
+
   async function resetDemo() {
+    pollSessionRef.current += 1;
     setState("running");
     setLines([]);
+    setIncidentUrl(null);
     setStatusMessage("Resetting demo workspace...");
 
     const response = await fetch("/api/demo/reset", {
@@ -59,17 +98,23 @@ export function SimulationControls() {
     }
 
     setLines(["✓ Demo workspace reset"]);
-    setStatusMessage("Demo workspace reset.");
+    setStatusMessage("Demo workspace reset. Ready to replay the incident flow.");
     setState("done");
   }
 
   async function runSimulation() {
+    if (running) {
+      return;
+    }
+
+    pollSessionRef.current += 1;
+    const currentPollSession = pollSessionRef.current;
+
     setState("running");
     setLines([]);
     setActiveStage(0);
+    setIncidentUrl(null);
     setStatusMessage("Starting replay and creating async demo run...");
-
-    await fetch("/api/demo/replay", { method: "GET" });
 
     const response = await fetch("/api/demo/replay", {
       method: "POST",
@@ -78,6 +123,9 @@ export function SimulationControls() {
     if (response.status !== 202) {
       const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
       const message = body?.error?.message ?? `Replay failed to start (${response.status}).`;
+      if (pollSessionRef.current !== currentPollSession) {
+        return;
+      }
       setLines([message]);
       setStatusMessage(message);
       setState("error");
@@ -90,25 +138,39 @@ export function SimulationControls() {
     let navigated = false;
 
     while (true) {
+      if (pollSessionRef.current !== currentPollSession) {
+        return;
+      }
+
       const statusResponse = await fetch(`/api/demo/runs/${runId}`, {
         method: "GET",
         cache: "no-store",
       });
 
       if (!statusResponse.ok) {
+        if (pollSessionRef.current !== currentPollSession) {
+          return;
+        }
         setState("error");
         setStatusMessage(`Unable to fetch replay status (${statusResponse.status}).`);
         return;
       }
 
       const run = (await statusResponse.json()) as ReplayRunStatus;
+
+      if (pollSessionRef.current !== currentPollSession) {
+        return;
+      }
+
       setLines(run.lines);
       setActiveStage(Math.max(0, Math.min(run.stage.index, STAGES.length)));
-      setStatusMessage(`Replay stage: ${run.stage.label}`);
+      const mappedStage = STAGE_LABEL_BY_KEY[run.stage.key] ?? run.stage.label;
+      setStatusMessage(`Replay stage: ${mappedStage}`);
 
       if (!navigated && run.incidentUrl) {
         navigated = true;
-        setStatusMessage("Incident detected. Opening detail view while replay continues in background...");
+        setIncidentUrl(run.incidentUrl);
+        setStatusMessage("Incident available. Open incident detail to inspect evidence and response steps.");
         router.push(run.incidentUrl);
       }
 
@@ -122,12 +184,15 @@ export function SimulationControls() {
 
       if (run.status === "completed") {
         setState("done");
+        if (run.incidentUrl) {
+          setIncidentUrl(run.incidentUrl);
+        }
         if (!navigated && run.incidentUrl) {
           setStatusMessage("Replay completed. Opening incident detail...");
           router.push(run.incidentUrl);
           return;
         }
-        setStatusMessage("Replay completed.");
+        setStatusMessage("Replay completed. Recovery has been verified.");
         return;
       }
 
@@ -161,15 +226,25 @@ export function SimulationControls() {
 
       <p className="mt-3 text-sm text-slate-700">{statusMessage}</p>
 
+      {incidentUrl ? (
+        <p className="mt-2 text-sm text-slate-700">
+          Incident detected. Inspect evidence and recommended response in{" "}
+          <Link href={incidentUrl} className="font-semibold underline">
+            incident detail
+          </Link>
+          .
+        </p>
+      ) : null}
+
       <ol className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
-        {STAGES.map((label, index) => {
+        {STAGES.map((stage, index) => {
           const stepNumber = index + 1;
           const done = activeStage >= stepNumber;
           const current = activeStage === stepNumber;
 
           return (
             <li
-              key={label}
+              key={stage.label}
               className={`rounded-md border px-3 py-2 text-xs ${
                 current
                   ? "border-slate-900 bg-slate-900 text-white"
@@ -181,7 +256,8 @@ export function SimulationControls() {
               <span className="mr-2 inline-block w-4 text-center" aria-hidden="true">
                 {done ? "✓" : stepNumber}
               </span>
-              {label}
+              <p className="font-semibold">{stage.label}</p>
+              <p className={`${current ? "text-slate-200" : "text-slate-600"}`}>{stage.detail}</p>
             </li>
           );
         })}
@@ -189,7 +265,7 @@ export function SimulationControls() {
 
       <div className="mt-4 rounded-md bg-slate-950 p-3 text-xs text-slate-100">
         {lines.length === 0 ? (
-          <p className="text-slate-400">No replay output yet.</p>
+          <p className="text-slate-400">Demo ready. Run the replay to watch detection, incident evidence, and recovery verification.</p>
         ) : (
           <ul className="space-y-1">
             {lines.map((line, index) => (

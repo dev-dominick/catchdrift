@@ -217,30 +217,40 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
   )}.`;
 
   const activeFreshnessSuppression = sourceFreshnessLabel(sourceHealth as never[]);
-  const referenceTimestamp = incident.updated_at
-    ? new Date(String(incident.updated_at)).getTime()
-    : durationEnd.getTime();
-  const incidentAgeMinutes = Math.max(0, Math.round((referenceTimestamp - detectedAt.getTime()) / 60_000));
+  const recommendedAction = "Validate redirect tracking and attribution payload integrity before rollback.";
+  const recoveryStatus = incident.recovered_at ? "Recovery verified" : "Recovery still in progress";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <IncidentLiveRefresh status={String(incident.status)} />
       <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Incident detail</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">A. What is happening?</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-900">What happened?</h1>
         <p className="mt-3 text-sm leading-6 text-slate-700">{summary}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Info label="Affected campaign" value={String(incident.campaign_name)} />
+          <Info label="Channel" value="Paid social (demo replay)" />
+          <Info label="Active spend" value={`${formatMoney(baseline.hourlySpend)}/hour`} />
+          <Info label="Detected failure" value="Tracking integrity degradation" />
+          <Info label="Likely correlated change" value={`Deployment ${deploymentCandidate?.version ?? "n/a"}`} />
+          <Info label="Recommended next action" value={recommendedAction} />
+          <Info label="Recovery status" value={recoveryStatus} />
           <Info label="Current state" value={String(incident.status)} />
-          <Info label="Severity" value={String(incident.severity)} />
           <Info label="Estimated exposure/hour" value={exposureLabel(
             incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
             incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor),
             String(incident.currency),
           )} />
-          <Info label="Campaign spend" value={`${formatMoney(baseline.hourlySpend)}/hour`} />
-          <Info label="Time since detection" value={`${incidentAgeMinutes} minutes`} />
-          <Info label="Campaign" value={String(incident.campaign_name)} />
         </div>
+
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+          Deterministic detection. AI-assisted investigation. Human-controlled action.
+        </p>
+
+        <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+          Correlation evidence highlights the strongest likely operational change, but does not
+          prove causation.
+        </p>
 
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           Financial numbers are estimated exposure signals, not confirmed money saved.
@@ -251,9 +261,11 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <BuyerBrief incidentId={incidentId} />
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">B. Why did CatchDrift alert?</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Why CatchDrift opened this incident</h2>
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -301,7 +313,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">C. What changed?</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Correlated operational change</h2>
           <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
             Strongest correlated change - not confirmed causation.
           </p>
@@ -330,10 +342,12 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">D. What should the buyer inspect?</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Recommended investigation steps</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
             <li>Verify click-ID forwarding in redirect responses.</li>
-            <li>Compare redirect behavior before and after deployment v42.</li>
+            <li>
+              Compare redirect behavior before and after deployment {deploymentCandidate?.version ?? "shown in the correlated change section"}.
+            </li>
             <li>Inspect attribution payloads for missing campaign identifiers.</li>
             <li>Confirm internal submissions still contain click and campaign identifiers.</li>
             <li>Validate attributed conversions against internal submissions.</li>
@@ -342,10 +356,8 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
           </ol>
         </section>
 
-        <BuyerBrief incidentId={incidentId} />
-
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">E. Financial exposure</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Financial exposure</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>
               Exposure-rate range: {exposureLabel(
@@ -375,7 +387,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">F. Recovery verification</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Recovery verification</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>Corrective deployment: {String(latestCorrectiveDeployment?.version ?? "n/a")}</li>
             <li>Required recovery intervals: 3</li>

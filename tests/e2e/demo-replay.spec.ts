@@ -109,7 +109,7 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   await page.goto(String(incidentUrl));
   const activeReachedAt = Date.now();
 
-  await expect(page.getByText("A. What is happening?")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What happened\?/i })).toBeVisible();
   await expect(page.getByText(/Current state/i)).toBeVisible();
 
   await expect(page.getByText(/Final status:/i)).toContainText(/recovered/i, {

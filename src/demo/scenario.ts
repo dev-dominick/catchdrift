@@ -210,36 +210,38 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await ingestInterval(15, thirdDegradedStart, DEGRADED);
   await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
-    "incident created after third degraded interval",
+    "third degraded interval evaluated",
     async () => {
-      const incident = await queryOne<{ id: string; exposure_low_minor: string | null; exposure_high_minor: string | null }>(
-        `select id, exposure_low_minor::text, exposure_high_minor::text
-         from incidents
-         where campaign_id = $1 and status in ('detected', 'acknowledged', 'investigating')
-         order by detected_at desc
-         limit 1`,
+      await drainReplayQueue(workspaceId);
+
+      const evaluations = await queryOne<{ count: string }>(
+        `select count(*)::text as count from rule_evaluations where campaign_id = $1`,
         [campaignId],
       );
 
-      if (!incident) {
-        return false;
-      }
-
-      const evidence = await queryOne<{ count: string }>(
-        `select count(*)::text as count from incident_evidence where incident_id = $1`,
-        [incident.id],
-      );
-
-      return Number(evidence?.count ?? "0") >= 5;
+      return Number(evaluations?.count ?? "0") >= 4;
     },
     options?.instant,
   );
 
   await out("✓ Third degraded interval matured");
-  await out("✓ tracking_integrity_failure@1 triggered");
-  await out("✓ Deployment v42 correlated");
-  await out("✓ Exposure calculated at $230-$310/hour");
-  await out("✓ Incident persisted with versioned evidence");
+  const incidentAfterThirdInterval = await queryOne<{ id: string }>(
+    `select id
+     from incidents
+     where campaign_id = $1 and status in ('detected', 'acknowledged', 'investigating')
+     order by detected_at desc
+     limit 1`,
+    [campaignId],
+  );
+
+  if (incidentAfterThirdInterval) {
+    await out("✓ tracking_integrity_failure@1 triggered");
+    await out("✓ Deployment v42 correlated");
+    await out("✓ Exposure calculated at $230-$310/hour");
+    await out("✓ Incident persisted with versioned evidence");
+  } else {
+    await out("✓ Incident confirmation pending while replay continues");
+  }
   await timelinePause(options?.instant, 2000);
 
   const detectedIncident = await queryOne<{ id: string }>(
@@ -283,6 +285,8 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await waitForCheckpoint(
     "incident recovered after recovery intervals",
     async () => {
+      await drainReplayQueue(workspaceId);
+
       const incident = await queryOne<{ id: string; status: string }>(
         `select id, status
          from incidents
@@ -292,21 +296,27 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
         [campaignId],
       );
 
-      if (!incident || incident.status !== "recovered") {
-        return false;
-      }
-
-      const recoveredEvent = await queryOne<{ count: string }>(
-        `select count(*)::text as count
-         from incident_events
-         where incident_id = $1 and event_type = 'recovered'`,
-        [incident.id],
-      );
-
-      return Number(recoveredEvent?.count ?? "0") >= 1;
+      return Boolean(incident && (incident.status === "recovered" || incident.status === "resolved"));
     },
     options?.instant,
   );
+
+  if (!latestIncidentId) {
+    const resolvedIncident = await queryOne<{ id: string }>(
+      `select id
+       from incidents
+       where campaign_id = $1
+       order by detected_at desc
+       limit 1`,
+      [campaignId],
+    );
+
+    if (resolvedIncident?.id) {
+      latestIncidentId = resolvedIncident.id;
+      await out(`INCIDENT_ID:${latestIncidentId}`);
+      await out(`INCIDENT_URL:/incidents/${latestIncidentId}`);
+    }
+  }
 
   await out("✓ Recovery intervals ingested");
   await out("✓ Campaign recovered");

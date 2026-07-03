@@ -60,8 +60,9 @@ export function BuyerBrief({ incidentId }: { incidentId: string }) {
 
       {!data && !error ? (
         <p className="mt-3 text-sm text-slate-600">
-          Optional summary generated from persisted incident evidence. Deterministic detection and
-          incident lifecycle remain unchanged.
+          Optional AI investigation aid generated from persisted evidence. AI may summarize findings
+          and prioritize steps. AI does not create incidents, set severity, calculate exposure, or
+          verify recovery.
         </p>
       ) : null}
 

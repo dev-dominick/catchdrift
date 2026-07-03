@@ -20,58 +20,62 @@ export default async function HomePage() {
       <header className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">CatchDrift</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-          Catch tracking failures before paid spend keeps leaking.
+          Catch tracking failures while your campaigns are still spending.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-          CatchDrift detects persistent conversion-path degradation, connects it to the strongest
-          correlated operational change, estimates financial exposure, and verifies recovery.
+          CatchDrift detects when a landing-page or tracking change damages attribution, connects
+          the failure to recent operational changes, estimates active spend exposure, and verifies
+          recovery before manual reporting catches up.
         </p>
 
         <div className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ProofItem label="Campaign spend" value={`${formatMoney(estimate.hourlySpend)}/hour`} />
-          <ProofItem label="Click-to-session loss" value="rises from baseline" />
-          <ProofItem label="Attribution loss" value="persistent across intervals" />
-          <ProofItem label="Estimated exposure" value={`${formatMoney(estimate.low)}-${formatMoney(estimate.high)}/hour`} />
-          <ProofItem label="Correlated change" value="Deployment v42" />
-          <ProofItem
-            label="Current state"
-            value={suppressingCount === 0 ? "decision-ready" : "freshness-suppressed"}
-          />
+          <ProofItem label="Active spend at risk" value={`${formatMoney(estimate.hourlySpend)}/hour`} />
+          <ProofItem label="Estimated exposure rate" value={`${formatMoney(estimate.low)}-${formatMoney(estimate.high)}/hour`} />
+          <ProofItem label="Detection window" value="3 degraded intervals (15 minutes)" />
+          <ProofItem label="Expected manual discovery delay" value="90 minutes" />
+          <ProofItem label="Exposure surfaced earlier" value={`${formatMoney(additionalLow)}-${formatMoney(additionalHigh)}`} />
         </div>
 
         <p className="mt-4 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-          Campaign metric values are controlled for deterministic demonstration. Ingestion, worker processing,
-          detection, persistence, correlation, exposure calculation, and recovery tracking are real.
+          Controlled campaign data. Real ingestion, detection, evidence correlation and recovery verification.
         </p>
       </header>
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">Live replay sequence</h2>
+        <h2 className="text-sm font-semibold text-slate-900">What you will see in the 25-second replay</h2>
         <p className="mt-2 text-sm text-slate-700">
-          1. Healthy 2. Deployment 3. Degradation 4. Incident detected 5. Corrective deployment 6. Recovery verified.
+          Campaign healthy, landing-page release deployed, attribution degrades while spend remains
+          active, CatchDrift opens an incident, exposure continues accumulating, and recovery is
+          verified against explicit criteria.
         </p>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <SimulationControls />
         <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-900">Why this saves money</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Demo financial outcome</h2>
           <div className="mt-3 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
             <p>
-              <span className="font-medium text-slate-900">Estimated exposure:</span>{" "}
+              <span className="font-medium text-slate-900">Active spend at risk:</span> {formatMoney(estimate.hourlySpend)}/hour
+            </p>
+            <p>
+              <span className="font-medium text-slate-900">Estimated exposure rate:</span>{" "}
               {formatMoney(estimate.low)}-{formatMoney(estimate.high)}/hour
             </p>
             <p>
-              <span className="font-medium text-slate-900">Assumed manual discovery delay:</span> 90 minutes
+              <span className="font-medium text-slate-900">Detection window:</span> 3 degraded intervals (15 minutes)
             </p>
             <p>
-              <span className="font-medium text-slate-900">Potential additional exposure surfaced earlier:</span>{" "}
+              <span className="font-medium text-slate-900">Expected manual discovery delay:</span> 90 minutes
+            </p>
+            <p>
+              <span className="font-medium text-slate-900">Exposure surfaced earlier:</span>{" "}
               {formatMoney(additionalLow)}-{formatMoney(additionalHigh)}
             </p>
           </div>
           <p className="mt-3 text-xs text-slate-600">
-            This is not confirmed money saved. It is estimated financial exposure surfaced while a
-            failure could otherwise remain unnoticed.
+            Demo estimates based on the controlled replay scenario. This is estimated exposure,
+            not confirmed money saved.
           </p>
 
           <h3 className="mt-5 text-sm font-semibold text-slate-900">Source health summary</h3>
