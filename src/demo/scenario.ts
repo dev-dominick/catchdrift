@@ -1,12 +1,18 @@
 import { addMinutes, subMinutes } from "date-fns";
 import {
+  countPendingJobs,
   ensureDemoWorkspaceAndCampaign,
   ingestDeploymentEvent,
   ingestMetricObservation,
+  processPendingJobsForWorkspace,
   resetDemoWorkspace,
 } from "@/domain/engine";
 import { query, queryOne } from "@/db/sql";
 import { DEMO_EXTERNAL_CAMPAIGN_ID } from "@/lib/constants";
+
+const DEMO_REPLAY_INLINE_WORKER_ID = "demo-replay-inline";
+const DEMO_REPLAY_JOB_BATCH_SIZE = 500;
+const DEMO_REPLAY_MAX_DRAIN_PASSES = 6;
 
 const METRIC_SOURCES: Record<string, string> = {
   spend: "spend_feed",
@@ -85,7 +91,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await resetDemoWorkspace();
   await out("✓ Demo workspace reset");
 
-  const { campaignId } = await ensureDemoWorkspaceAndCampaign();
+  const { campaignId, workspaceId } = await ensureDemoWorkspaceAndCampaign();
   await out("✓ Campaign mapping created");
 
   const start = subMinutes(new Date(), 95);
@@ -95,6 +101,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     const intervalStart = addMinutes(start, i * 5);
     await ingestInterval(i, intervalStart, HEALTHY);
   }
+  await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
     "healthy baseline evaluations",
     async () => {
@@ -133,6 +140,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
       },
     ],
   });
+  await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
     "deployment v42 persisted",
     async () => {
@@ -152,6 +160,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   const firstDegradedStart = addMinutes(start, 60);
   await ingestInterval(13, firstDegradedStart, DEGRADED);
+  await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
     "first degraded interval evaluated",
     async () => {
@@ -172,6 +181,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   const secondDegradedStart = addMinutes(start, 65);
   await ingestInterval(14, secondDegradedStart, DEGRADED);
+  await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
     "second degraded interval evaluated",
     async () => {
@@ -192,6 +202,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
 
   const thirdDegradedStart = addMinutes(start, 70);
   await ingestInterval(15, thirdDegradedStart, DEGRADED);
+  await drainReplayQueue(workspaceId);
   await waitForCheckpoint(
     "incident created after third degraded interval",
     async () => {
@@ -254,10 +265,12 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     ],
   });
   await out("✓ Deployment v43 recorded");
+  await drainReplayQueue(workspaceId);
 
   for (let i = 0; i < 3; i += 1) {
     await ingestInterval(16 + i, addMinutes(start, 75 + i * 5), RECOVERY);
   }
+  await drainReplayQueue(workspaceId);
 
   await waitForCheckpoint(
     "incident recovered after recovery intervals",
@@ -299,6 +312,28 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     incidentCount: Number(incidents[0]?.count ?? "0"),
     incidentId: latestIncidentId,
   };
+}
+
+async function drainReplayQueue(workspaceId: string): Promise<void> {
+  let totalProcessed = 0;
+
+  for (let pass = 0; pass < DEMO_REPLAY_MAX_DRAIN_PASSES; pass += 1) {
+    const processed = await processPendingJobsForWorkspace(
+      DEMO_REPLAY_INLINE_WORKER_ID,
+      workspaceId,
+      DEMO_REPLAY_JOB_BATCH_SIZE,
+    );
+    totalProcessed += processed;
+
+    if (processed < DEMO_REPLAY_JOB_BATCH_SIZE) {
+      return;
+    }
+  }
+
+  const remaining = await countPendingJobs(workspaceId);
+  throw new Error(
+    `Replay exceeded bounded inline job processing. Processed ${totalProcessed} jobs; ${remaining} demo jobs remain pending.`,
+  );
 }
 
 async function waitForCheckpoint(

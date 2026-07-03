@@ -159,6 +159,8 @@ export async function latestIncident(campaignId: string) {
 }
 
 export async function insertNonDemoWorkspaceFixture() {
+  const fixtureId = `ext-fixture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   const workspace = await queryOne<{ id: string }>(
     `insert into workspaces (slug, name) values ('external-workspace', 'External Workspace')
      on conflict (slug) do update set name = excluded.name
@@ -195,9 +197,9 @@ export async function insertNonDemoWorkspaceFixture() {
       interval_start, interval_end, source_record_id, source_revision, maturity, payload_hash
     ) values (
       $1, $2, 'spend_feed', 'spend', '10', 'USD',
-      now() - interval '10 minute', now() - interval '5 minute', 'ext-fixture-1', 1, 'mature', 'fixture'
+      now() - interval '10 minute', now() - interval '5 minute', $3, 1, 'mature', 'fixture'
     )`,
-    [workspace.id, campaign.id],
+    [workspace.id, campaign.id, fixtureId],
   );
 
   return { workspaceId: workspace.id, campaignId: campaign.id };

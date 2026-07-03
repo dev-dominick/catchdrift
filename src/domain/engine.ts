@@ -791,6 +791,27 @@ export async function claimJob(workerId: string): Promise<{
   payload_json: Record<string, unknown>;
   workspace_id: string;
 } | null> {
+  return claimJobInternal(workerId);
+}
+
+export async function claimJobForWorkspace(workerId: string, workspaceId: string): Promise<{
+  id: string;
+  type: string;
+  payload_json: Record<string, unknown>;
+  workspace_id: string;
+} | null> {
+  return claimJobInternal(workerId, workspaceId);
+}
+
+async function claimJobInternal(
+  workerId: string,
+  workspaceId?: string,
+): Promise<{
+  id: string;
+  type: string;
+  payload_json: Record<string, unknown>;
+  workspace_id: string;
+} | null> {
   const rows = await query<{
     id: string;
     type: string;
@@ -802,6 +823,7 @@ export async function claimJob(workerId: string): Promise<{
       from jobs
       where state = 'pending'
         and available_at <= now()
+        and ($2::uuid is null or workspace_id = $2::uuid)
       order by created_at asc
       for update skip locked
       limit 1
@@ -815,7 +837,7 @@ export async function claimJob(workerId: string): Promise<{
     from picked
     where j.id = picked.id
     returning j.id, j.type, j.payload_json, j.workspace_id`,
-    [workerId],
+    [workerId, workspaceId ?? null],
   );
 
   return rows[0] ?? null;
@@ -865,10 +887,28 @@ export async function processJob(job: {
 }
 
 export async function processPendingJobs(workerId: string, maxJobs = 100): Promise<number> {
+  return processPendingJobsInternal(workerId, maxJobs);
+}
+
+export async function processPendingJobsForWorkspace(
+  workerId: string,
+  workspaceId: string,
+  maxJobs = 100,
+): Promise<number> {
+  return processPendingJobsInternal(workerId, maxJobs, workspaceId);
+}
+
+async function processPendingJobsInternal(
+  workerId: string,
+  maxJobs = 100,
+  workspaceId?: string,
+): Promise<number> {
   let processed = 0;
 
   while (processed < maxJobs) {
-    const job = await claimJob(workerId);
+    const job = workspaceId
+      ? await claimJobForWorkspace(workerId, workspaceId)
+      : await claimJob(workerId);
     if (!job) {
       break;
     }
@@ -883,6 +923,19 @@ export async function processPendingJobs(workerId: string, maxJobs = 100): Promi
   }
 
   return processed;
+}
+
+export async function countPendingJobs(workspaceId?: string): Promise<number> {
+  const row = await queryOne<{ count: string }>(
+    `select count(*)::text as count
+     from jobs
+     where state = 'pending'
+       and available_at <= now()
+       and ($1::uuid is null or workspace_id = $1::uuid)`,
+    [workspaceId ?? null],
+  );
+
+  return Number(row?.count ?? "0");
 }
 
 export async function listExceptionQueue(workspaceSlug = DEMO_WORKSPACE_SLUG) {
