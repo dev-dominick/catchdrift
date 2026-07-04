@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { exposureLabel, formatMoneyMinor } from "@/lib/format";
+import { exposureLabel } from "@/lib/format";
 import { DEMO_SCENARIO } from "@/lib/constants";
+import { PRESENTATION_COPY } from "@/lib/presentation-contract";
 
 type ExceptionItem = {
   id: string;
@@ -42,7 +43,7 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
           href="/"
           className="mt-4 inline-flex rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
         >
-          Run incident simulation
+          {PRESENTATION_COPY.replayCta}
         </Link>
       </div>
     );
@@ -96,7 +97,7 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
                         {incident.campaign_name} · {DEMO_SCENARIO.trafficSource}
                       </p>
                       <p className="mt-1 text-sm text-slate-700">
-                        {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} exposed before recovery
+                        {PRESENTATION_COPY.exposureLabels.beforeDetection}: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
                       </p>
                       <p className="mt-1 text-sm text-slate-700">Likely cause: {DEMO_SCENARIO.rootCauseSummary}</p>
                       <p className="mt-1 text-sm text-slate-700">

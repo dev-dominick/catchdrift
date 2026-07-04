@@ -19,11 +19,11 @@ export default async function SourcesPage() {
       <div className="mb-4 grid gap-3 md:grid-cols-2">
         <section className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
           <p className="font-semibold">Simulation environment</p>
-          <p className="mt-1">Completed successfully. Historical simulation evidence remains available after the controlled dataset stops advancing.</p>
+          <p className="mt-1">Data mode: Simulation. Historical simulation evidence remains available after the controlled dataset stops advancing.</p>
         </section>
         <section className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
           <p className="font-semibold">Live integrations</p>
-          <p className="mt-1">Not connected in this demonstration. Ad-platform, analytics, deployment, and affiliate-provider feeds are outside this controlled environment.</p>
+          <p className="mt-1">Live connector not configured in this demonstration. Ad-platform, analytics, deployment, and affiliate-provider feeds are outside this controlled environment.</p>
         </section>
       </div>
 

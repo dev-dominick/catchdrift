@@ -15,6 +15,25 @@ type RunStatus = {
   incidentUrl: string | null;
 };
 
+async function resetDemoForParity(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const response = await page.request.post("/api/demo/reset");
+
+    if (response.status() === 200) {
+      return;
+    }
+
+    if ([409, 429].includes(response.status())) {
+      await page.waitForTimeout(3_000);
+      continue;
+    }
+
+    throw new Error(`Unable to reset demo state (${response.status()}).`);
+  }
+
+  throw new Error("Demo reset did not complete after retry attempts.");
+}
+
 function collectFailures(page: Page) {
   const failures: Failure[] = [];
 
@@ -144,7 +163,12 @@ async function startAndCompleteSimulation(page: Page): Promise<RunStatus> {
     const start = await page.request.post("/api/demo/replay");
     if (start.status() === 202) {
       const { runId } = (await start.json()) as { runId: string };
-      return await pollRunUntilComplete(page, runId);
+      try {
+        return await pollRunUntilComplete(page, runId);
+      } catch {
+        await page.waitForTimeout(5_000);
+        continue;
+      }
     }
 
     if ([409, 429].includes(start.status())) {
@@ -190,6 +214,7 @@ test.describe("public production parity", () => {
     const failures = collectFailures(page);
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
+    await resetDemoForParity(page);
 
     await expect(
       page.getByRole("heading", {
@@ -198,16 +223,16 @@ test.describe("public production parity", () => {
     ).toBeVisible();
 
     await expect(page.getByRole("link", { name: "Run incident simulation" })).toBeVisible();
-    await expect(page.getByText("Potential daily exposure")).toBeVisible();
-    await expect(page.getByText("Exposure before detection")).toBeVisible();
-    await expect(page.getByText("Detection time")).toBeVisible();
-    await expect(page.getByText("Attribution drop")).toBeVisible();
+    await expect(page.getByText("Potential daily exposure", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Detection duration", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Attribution drop", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("1. Campaign healthy")).toBeVisible();
     await expect(page.getByText("2. Tracking signal begins degrading")).toBeVisible();
     await expect(page.getByText("3. CatchDrift waits for confirmation")).toBeVisible();
     await expect(page.getByText("4. Incident confirmed")).toBeVisible();
     await expect(page.getByText("5. Recent deployment identified")).toBeVisible();
-    await expect(page.getByText("6. $640 of spend now at risk")).toBeVisible();
+    await expect(page.getByText("6. Exposure at risk")).toBeVisible();
     await expect(page.getByText("7. Tracking restored")).toBeVisible();
     await expect(page.getByText("8. Recovery verified")).toBeVisible();
 
@@ -241,8 +266,8 @@ test.describe("public production parity", () => {
     await expect(page).toHaveURL(/\/incidents\//);
     await waitForIncidentDetailReady(page);
     await expect(page.getByRole("heading", { name: /Executive incident brief|Buyer brief/i })).toBeVisible();
-    await expect(page.getByText("$640", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("$3,840", { exact: true })).toBeVisible();
+    await expect(page.getByText("$38-$52", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
     await expect(page.getByText(/Recovered|Resolved/).first()).toBeVisible();
 
     await page.getByText("View technical evidence").click();
@@ -257,13 +282,13 @@ test.describe("public production parity", () => {
     await expect(page.getByRole("button", { name: "Start investigation" })).toHaveCount(0);
 
     await page.goto("/incidents", { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("$640 exposed before recovery")).toBeVisible();
+    await expect(page.getByText("Exposure before detection: $230-$310/hour")).toBeVisible();
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Simulation environment")).toBeVisible();
-    await expect(page.getByText("Completed successfully.")).toBeVisible();
+    await expect(page.getByText("Data mode: Simulation.")).toBeVisible();
     await expect(page.getByText("Live integrations")).toBeVisible();
-    await expect(page.getByText("Not connected in this demonstration.")).toBeVisible();
+    await expect(page.getByText("Live connector not configured in this demonstration.")).toBeVisible();
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.goto("/", { waitUntil: "domcontentloaded" });

@@ -19,7 +19,12 @@ import {
   type ThresholdEvidence,
 } from "@/hooks/incidents/incident-detail";
 import { DEMO_SCENARIO } from "@/lib/constants";
-import { exposureLabel, formatMoney, formatMoneyMinor, formatPercent } from "@/lib/format";
+import { exposureLabel, formatMoney, formatMoneyRangeMinor, formatPercent } from "@/lib/format";
+import {
+  DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
+  deriveExposureModel,
+  PRESENTATION_COPY,
+} from "@/lib/presentation-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -77,16 +82,47 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
     ? Math.abs(differenceInMinutes(new Date(metric.evaluationWindowStart), new Date(deploymentCandidate.deployed_at)))
     : null;
 
-  const exposureLowHourly = incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor) / 100;
-  const exposureHighHourly = incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor) / 100;
-  const potentialAdditionalLow = exposureLowHourly == null ? null : exposureLowHourly * 1.5;
-  const potentialAdditionalHigh = exposureHighHourly == null ? null : exposureHighHourly * 1.5;
+  const exposureLowPerHourMinor =
+    incident.exposure_low_minor == null ? DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low : Number(incident.exposure_low_minor);
+  const exposureHighPerHourMinor =
+    incident.exposure_high_minor == null ? DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high : Number(incident.exposure_high_minor);
+
+  const deployedAtForModel = deploymentCandidate?.deployed_at ? String(deploymentCandidate.deployed_at) : null;
+  const detectedAtForModel = incident.detected_at ? String(incident.detected_at) : null;
+
+  const exposureModel =
+    deployedAtForModel && detectedAtForModel
+      ? deriveExposureModel({
+          lowPerHourMinor: exposureLowPerHourMinor,
+          highPerHourMinor: exposureHighPerHourMinor,
+          deployedAt: deployedAtForModel,
+          detectedAt: detectedAtForModel,
+        })
+      : null;
+
+  const potentialDailyExposureLabel =
+    exposureModel == null
+      ? "n/a"
+      : formatMoneyRangeMinor(
+          exposureModel.dailyMinor.lowMinor,
+          exposureModel.dailyMinor.highMinor,
+          String(incident.currency),
+        );
+
+  const beforeDetectionExposureLabel =
+    exposureModel == null
+      ? "n/a"
+      : formatMoneyRangeMinor(
+          exposureModel.beforeDetectionMinor.lowMinor,
+          exposureModel.beforeDetectionMinor.highMinor,
+          String(incident.currency),
+        );
   const recoveredCount = recoveryIntervalsCount(rows, baseline);
 
   const latestCorrectiveDeployment = (deployments as Array<Record<string, unknown>>).find(
     (item) => String(item.version) !== String(deploymentCandidate?.version),
   );
-  const timelineMarkers = buildTimelineMarkers({
+  const timelineComputation = buildTimelineMarkers({
     deployedAt: deploymentCandidate?.deployed_at ? String(deploymentCandidate.deployed_at) : null,
     detectedAt: incident.detected_at ? String(incident.detected_at) : null,
     fixedAt: latestCorrectiveDeployment?.deployed_at ? String(latestCorrectiveDeployment.deployed_at) : null,
@@ -99,9 +135,9 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
     degradedAttributed,
     deploymentVersion: deploymentCandidate?.version ?? "",
     deploymentIdentifier: DEMO_SCENARIO.deploymentIdentifier,
-    detectionDurationMinutes: DEMO_SCENARIO.detectionDurationMinutes,
-    exposureAtDetectionLabel: formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor),
-    potentialDailyExposureLabel: formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor),
+    detectionDurationMinutes: timelineComputation.detectionDurationMinutes,
+    exposureAtDetectionLabel: beforeDetectionExposureLabel,
+    potentialDailyExposureLabel,
   });
 
   const freshnessAtEvaluation = evaluationFreshness
@@ -129,9 +165,20 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
       </header>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricTile label="Potential daily exposure" value={formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} />
-        <MetricTile label="Exposure before detection" value={formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} />
-        <MetricTile label="Detection time" value={`${DEMO_SCENARIO.detectionDurationMinutes} min`} />
+        <MetricTile label={PRESENTATION_COPY.exposureLabels.potentialDaily} value={potentialDailyExposureLabel} />
+        <MetricTile label={PRESENTATION_COPY.exposureLabels.beforeDetection} value={beforeDetectionExposureLabel} />
+        <MetricTile
+          label={PRESENTATION_COPY.exposureLabels.hourlyRate}
+          value={formatMoneyRangeMinor(exposureLowPerHourMinor, exposureHighPerHourMinor, String(incident.currency))}
+        />
+        <MetricTile
+          label="Detection duration"
+          value={
+            timelineComputation.detectionDurationMinutes == null
+              ? "n/a"
+              : `${timelineComputation.detectionDurationMinutes} min`
+          }
+        />
         <MetricTile label="Attribution drop" value={`${DEMO_SCENARIO.attributionDeclinePercent}%`} />
       </section>
 
@@ -140,7 +187,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         <p className="mt-3 text-sm text-rose-900">
           CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
           Spend and clicks remained normal, but attributed sessions dropped {DEMO_SCENARIO.conversionDeclinePercent}% following deployment
-          {" "}{DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}.
+          {" "}{DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed before detection: {beforeDetectionExposureLabel}.
           Recommended action: {DEMO_SCENARIO.recommendedAction}
         </p>
 
@@ -171,9 +218,11 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
             {DEMO_SCENARIO.finalRecoveryStatement}
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>Exposure before recovery: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}</li>
-            <li>Potential daily exposure: {formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)}</li>
-            <li>Detection time: {DEMO_SCENARIO.detectionDurationMinutes} minutes</li>
+            <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {beforeDetectionExposureLabel}</li>
+            <li>{PRESENTATION_COPY.exposureLabels.potentialDaily}: {potentialDailyExposureLabel}</li>
+            <li>
+              Detection duration: {timelineComputation.detectionDurationMinutes == null ? "n/a" : `${timelineComputation.detectionDurationMinutes} minutes`}
+            </li>
           </ul>
         </section>
       ) : null}
@@ -217,7 +266,7 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
           <h2 className="text-lg font-semibold text-slate-900">Estimated exposure</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>
-              <span className="font-medium text-slate-900">Observed during simulation:</span>{" "}
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.hourlyRate}:</span>{" "}
               {exposureLabel(
                 incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
                 incident.exposure_high_minor == null ? null : Number(incident.exposure_high_minor),
@@ -225,10 +274,14 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
               )}
             </li>
             <li>
-              <span className="font-medium text-slate-900">Potential exposure with a 90-minute reporting delay:</span>{" "}
-              {potentialAdditionalLow == null || potentialAdditionalHigh == null
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.hypotheticalNinetyMinute}:</span>{" "}
+              {exposureModel == null
                 ? "n/a"
-                : `${formatMoney(potentialAdditionalLow)}-${formatMoney(potentialAdditionalHigh)}`}
+                : formatMoneyRangeMinor(
+                    exposureModel.ninetyMinuteMinor.lowMinor,
+                    exposureModel.ninetyMinuteMinor.highMinor,
+                    String(incident.currency),
+                  )}
             </li>
           </ul>
           <p className="mt-3 text-xs text-slate-600">
@@ -324,6 +377,9 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
                   <li>Detected at: {new Date(String(incident.detected_at)).toLocaleString()}</li>
                   <li>Recovered at: {incident.recovered_at ? new Date(String(incident.recovered_at)).toLocaleString() : "Not yet recovered"}</li>
+                  <li>
+                    Recovery duration: {timelineComputation.recoveryDurationMinutes == null ? "n/a" : `${timelineComputation.recoveryDurationMinutes} minutes`}
+                  </li>
                   <li>Current status: {String(incident.status)}</li>
                   <li>Changed field: {affectedComponent}</li>
                 </ul>
@@ -336,15 +392,18 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
                 Baseline and degraded intervals with spend, revenue, click loss, and attribution rate.
               </p>
               <div className="mt-4">
-                <EvidenceTimeline rows={timeline as never[]} markers={timelineMarkers} />
+                <EvidenceTimeline rows={timeline as never[]} markers={timelineComputation.markers} />
               </div>
               <ul className="mt-3 flex flex-wrap gap-2 text-xs text-slate-700">
-                {timelineMarkers.map((marker) => (
+                {timelineComputation.markers.map((marker) => (
                   <li key={`${marker.label}-${marker.timestamp}`} className="rounded-full border border-slate-300 bg-slate-50 px-2 py-1">
                     {marker.label}: {new Date(marker.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </li>
                 ))}
               </ul>
+              <p className="mt-2 text-xs text-slate-600">
+                Timeline invariant: {timelineComputation.invariant.valid ? "valid" : timelineComputation.invariant.reason}
+              </p>
             </section>
 
             <section className="mt-6">

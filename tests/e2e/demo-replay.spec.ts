@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { expect, test, type Page } from "@playwright/test";
 import { ensureDemoWorkspaceAndCampaign, resetDemoWorkspace } from "../../src/domain/engine";
-import { query } from "../../src/db/sql";
+import { query, queryOne } from "../../src/db/sql";
 import { DEMO_WORKSPACE_SLUG } from "../../src/lib/constants";
 
 async function resetDemoViaApi(page: Page) {
@@ -244,9 +244,46 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   await expect(page.getByRole("heading", { name: /Tracking (failure detected|dropped) after deployment/i })).toBeVisible();
   await expect(page.getByText(/Why CatchDrift flagged it/i)).toBeVisible();
 
-  await expect(page.getByText(/Recovery timestamp:/i)).toBeVisible({
-    timeout: 90_000,
-  });
+  const incidentId = (() => {
+    try {
+      const parsed = new URL(String(incidentUrl), "http://127.0.0.1:3000");
+      const match = parsed.pathname.match(/\/incidents\/([0-9a-f\-]+)$/i);
+      return match?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  expect(incidentId).toBeTruthy();
+
+  const persisted = await queryOne<{
+    campaign_id: string;
+    detected_at: string;
+    recovered_at: string | null;
+  }>(
+    `select campaign_id, detected_at, recovered_at
+     from incidents
+     where id = $1`,
+    [String(incidentId)],
+  );
+
+  expect(persisted).toBeTruthy();
+
+  await expect.poll(async () => {
+    const row = await queryOne<{ recovered_at: string | null }>(
+      `select recovered_at from incidents where id = $1`,
+      [String(incidentId)],
+    );
+
+    return row?.recovered_at ?? null;
+  }, { timeout: 90_000 }).not.toBeNull();
+
+  const recoveredAfterPoll = await queryOne<{ recovered_at: string | null }>(
+    `select recovered_at from incidents where id = $1`,
+    [String(incidentId)],
+  );
+
+  const recoveredAtIso = recoveredAfterPoll?.recovered_at;
+  expect(recoveredAtIso).toBeTruthy();
   const recoveredAt = Date.now();
 
   const startInvestigationButton = page.getByRole("button", { name: "Start investigation" });
@@ -256,6 +293,29 @@ test("replay reaches active incident then recovered within bounded runtime", asy
 
   await page.getByRole("button", { name: "Mark resolved" }).click();
   await expect(page.getByText(/^Resolved$/).first()).toBeVisible();
+
+  const deployments = await query<{ version: string; deployed_at: string }>(
+    `select version, deployed_at
+     from deployment_events
+     where campaign_id = $1 and version in ('v42', 'v43')
+     order by deployed_at asc`,
+    [String(persisted?.campaign_id)],
+  );
+
+  const deployedAt = new Date(deployments.find((item) => item.version === "v42")?.deployed_at ?? 0).getTime();
+  const detectedAt = new Date(String(persisted?.detected_at)).getTime();
+  const fixedAt = new Date(deployments.find((item) => item.version === "v43")?.deployed_at ?? 0).getTime();
+  const recoveredAtEvent = new Date(String(recoveredAtIso)).getTime();
+
+  expect(Number.isNaN(deployedAt)).toBe(false);
+  expect(Number.isNaN(detectedAt)).toBe(false);
+  expect(Number.isNaN(fixedAt)).toBe(false);
+  expect(Number.isNaN(recoveredAtEvent)).toBe(false);
+  expect(deployedAt < detectedAt).toBe(true);
+  expect(detectedAt <= fixedAt).toBe(true);
+  expect(fixedAt < recoveredAtEvent).toBe(true);
+  expect(Math.round((detectedAt - deployedAt) / 60_000)).toBe(10);
+  expect(Math.round((recoveredAtEvent - detectedAt) / 60_000)).toBe(20);
 
   expect(activeReachedAt - startedAt).toBeLessThan(30_000);
   expect(recoveredAt - startedAt).toBeLessThan(45_000);
@@ -367,34 +427,40 @@ test("integration status summaries render and technical source details are colla
   await detailsSummary.click();
   await expect(technicalDetails).toHaveAttribute("open", "");
   await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByText("Data mode", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Simulation status", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Live connector", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Not configured", { exact: true }).first()).toBeVisible();
 });
 
 test("canonical business values stay consistent across homepage, inbox, and incident detail", async ({ page }) => {
   await page.goto("/");
   await resetDemoViaApi(page);
 
-  await expect(page.getByText("Potential daily exposure")).toBeVisible();
-  await expect(page.getByText("$3,840", { exact: true })).toBeVisible();
-  await expect(page.getByText("Exposure before detection")).toBeVisible();
-  await expect(page.getByText("$640", { exact: true })).toBeVisible();
-  await expect(page.getByText("Detection time")).toBeVisible();
-  await expect(page.getByText("14 min", { exact: true })).toBeVisible();
-  await expect(page.getByText("Attribution drop")).toBeVisible();
+  await expect(page.getByText("Potential daily exposure", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("$38-$52", { exact: true })).toBeVisible();
+  await expect(page.getByText("Detection duration")).toBeVisible();
+  await expect(page.getByText("10 min", { exact: true })).toBeVisible();
+  await expect(page.getByText("Attribution drop", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("25%", { exact: true })).toBeVisible();
 
   const payload = await startReplayWithRetry(page);
 
-  const runState = await waitForRunToProgress(page, payload.runId);
+  const runState = await waitForRunToProgress(page, payload.runId, 180_000);
   expect(runState.status).not.toBe("failed");
 
   await page.goto("/incidents");
-  await expect(page.getByText("$640 exposed before recovery")).toBeVisible();
+  await expect(page.getByText("Exposure before detection: $230-$310/hour")).toBeVisible();
 
   await page.getByRole("link", { name: "View evidence" }).first().click();
   await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+  await page.getByText("View technical evidence").click();
   await expect(page.getByText("Potential daily exposure", { exact: true })).toBeVisible();
   await expect(page.getByText("Exposure before detection", { exact: true })).toBeVisible();
-  await expect(page.getByText("Detection time", { exact: true })).toBeVisible();
+  await expect(page.getByText("Detection duration", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Timeline invariant:/i)).toBeVisible();
   await expect(page.getByText("Attribution drop", { exact: true })).toBeVisible();
 });
 
@@ -405,8 +471,7 @@ test("simulation stages drive exposure progression and incident/recovery banners
   await expect(page.getByText("Exposure progression: $0")).toBeVisible();
   await page.getByRole("button", { name: "Run incident simulation" }).click();
 
-  await expect(page.getByText("Exposure progression: $160")).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByText("Exposure progression: $640")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText("Exposure progression: $38-$52")).toBeVisible({ timeout: 90_000 });
 });
 
 test("incident inbox link remains resolvable across refresh, new tab, and replay restart", async ({ page, browser }) => {

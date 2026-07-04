@@ -14,7 +14,13 @@ import {
   YAxis,
 } from "recharts";
 import { DEMO_SCENARIO } from "@/lib/constants";
-import { formatMoneyMinor } from "@/lib/format";
+import { formatMoneyRangeMinor } from "@/lib/format";
+import {
+  CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES,
+  DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
+  exposureRangeForMinutes,
+  PRESENTATION_COPY,
+} from "@/lib/presentation-contract";
 
 type SimulationState = "idle" | "running" | "incident" | "completed" | "error";
 type StoryStageKey =
@@ -71,8 +77,8 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
   },
   {
     key: "spend_at_risk",
-    title: `${formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} of spend now at risk`,
-    detail: `If untreated, this pattern represents up to ${formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} in potential daily exposure.`,
+    title: "Exposure at risk",
+    detail: "If untreated, this pattern increases potential daily exposure based on the estimated hourly exposure range.",
   },
   {
     key: "tracking_restored",
@@ -91,6 +97,34 @@ const STAGE_INDEX_BY_KEY = Object.fromEntries(STORY_STAGES.map((stage, index) =>
   number
 >;
 
+const DETECTION_DURATION_MINUTES =
+  CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES.detection - CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES.deployment;
+
+const EXPOSURE_BEFORE_DETECTION = exposureRangeForMinutes({
+  lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+  highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+  minutes: DETECTION_DURATION_MINUTES,
+});
+
+const EXPOSURE_NINETY_MINUTES = exposureRangeForMinutes({
+  lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+  highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+  minutes: 90,
+});
+
+const EXPOSURE_DAILY = exposureRangeForMinutes({
+  lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+  highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+  minutes: 24 * 60,
+});
+
+function scaleExposureRange(percent: number): { lowMinor: number; highMinor: number } {
+  return {
+    lowMinor: Math.round((EXPOSURE_BEFORE_DETECTION.lowMinor * percent) / 100),
+    highMinor: Math.round((EXPOSURE_BEFORE_DETECTION.highMinor * percent) / 100),
+  };
+}
+
 const TIMELINE_SERIES = [
   { t: "12:00", spend: 640, clicks: 1010, sessions: 984, conversions: 91 },
   { t: "12:05", spend: 640, clicks: 1002, sessions: 978, conversions: 90 },
@@ -105,10 +139,10 @@ const TIMELINE_SERIES = [
 ];
 
 const TIMELINE_MARKERS = [
-  { at: "12:15", label: "Deployment" },
-  { at: "12:25", label: "Incident detected" },
-  { at: "12:30", label: "Fix applied" },
-  { at: "12:40", label: "Recovery verified" },
+  { at: "12:15", label: PRESENTATION_COPY.timelineLabels.deployment },
+  { at: "12:25", label: PRESENTATION_COPY.timelineLabels.incidentDetected },
+  { at: "12:30", label: PRESENTATION_COPY.timelineLabels.fixApplied },
+  { at: "12:45", label: PRESENTATION_COPY.timelineLabels.recoveryVerified },
 ];
 
 function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
@@ -125,7 +159,10 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
     return "tracking_restored";
   }
 
-  if (allLines.includes("✓ Exposure calculated at")) {
+  if (
+    allLines.includes("✓ Exposure during detection estimated at") ||
+    allLines.includes("✓ Exposure calculated at")
+  ) {
     return "spend_at_risk";
   }
 
@@ -148,20 +185,20 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
   return "healthy";
 }
 
-function exposureForStage(stage: StoryStageKey): number {
+function exposureForStage(stage: StoryStageKey): { lowMinor: number; highMinor: number } {
   if (stage === "healthy") {
-    return DEMO_SCENARIO.stagedExposureMinor.healthy;
+    return { lowMinor: 0, highMinor: 0 };
   }
 
   if (stage === "signal_degrading" || stage === "waiting_confirmation") {
-    return DEMO_SCENARIO.stagedExposureMinor.degradation;
+    return scaleExposureRange(25);
   }
 
   if (stage === "incident_confirmed" || stage === "deployment_identified") {
-    return DEMO_SCENARIO.stagedExposureMinor.confirmation;
+    return scaleExposureRange(60);
   }
 
-  return DEMO_SCENARIO.stagedExposureMinor.detected;
+  return EXPOSURE_BEFORE_DETECTION;
 }
 
 export function SimulationControls() {
@@ -181,7 +218,7 @@ export function SimulationControls() {
   const running = useMemo(() => state === "running", [state]);
   const activeStageIndex = STAGE_INDEX_BY_KEY[stageKey] + 1;
   const progressPercent = (activeStageIndex / STORY_STAGES.length) * 100;
-  const stagedExposureMinor = exposureForStage(stageKey);
+  const stagedExposure = exposureForStage(stageKey);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -322,9 +359,22 @@ export function SimulationControls() {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Potential daily exposure" value={formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} />
-        <MetricCard label="Exposure before detection" value={formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} />
-        <MetricCard label="Detection time" value={`${DEMO_SCENARIO.detectionDurationMinutes} min`} />
+        <MetricCard
+          label={PRESENTATION_COPY.exposureLabels.potentialDaily}
+          value={formatMoneyRangeMinor(EXPOSURE_DAILY.lowMinor, EXPOSURE_DAILY.highMinor)}
+        />
+        <MetricCard
+          label={PRESENTATION_COPY.exposureLabels.beforeDetection}
+          value={formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}
+        />
+        <MetricCard
+          label={PRESENTATION_COPY.exposureLabels.hourlyRate}
+          value={formatMoneyRangeMinor(
+            DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+            DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+          )}
+        />
+        <MetricCard label="Detection duration" value={`${DETECTION_DURATION_MINUTES} min`} />
         <MetricCard label="Attribution drop" value={`${DEMO_SCENARIO.attributionDeclinePercent}%`} />
       </div>
 
@@ -336,7 +386,7 @@ export function SimulationControls() {
             onClick={runSimulation}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Run incident simulation
+            {PRESENTATION_COPY.replayCta}
           </button>
         ) : null}
 
@@ -372,7 +422,7 @@ export function SimulationControls() {
         <h3 className="mt-1 text-lg font-semibold text-slate-900">{stage.title}</h3>
         <p className="mt-2 text-sm text-slate-700">{statusMessage}</p>
         <p className="mt-2 text-sm font-semibold text-slate-900">
-          Exposure progression: {formatMoneyMinor(stagedExposureMinor)}
+          Exposure progression: {formatMoneyRangeMinor(stagedExposure.lowMinor, stagedExposure.highMinor)}
         </p>
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
@@ -413,7 +463,7 @@ export function SimulationControls() {
             Spend remains active while attributed sessions are down by {DEMO_SCENARIO.attributionDeclinePercent}%.
           </p>
           <p className="mt-2 text-base font-semibold text-rose-900">
-            {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} exposed before detection
+            {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)} exposure before detection
           </p>
         </section>
       ) : null}
@@ -457,7 +507,7 @@ export function SimulationControls() {
           <p className="mt-2 text-sm text-rose-900">
             CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
             Spend and clicks remained normal, but attributed sessions dropped {DEMO_SCENARIO.conversionDeclinePercent}% following
-            deployment {DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}.
+            deployment {DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed before detection: {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}.
             Recommended action: {DEMO_SCENARIO.recommendedAction}
           </p>
 
@@ -486,13 +536,14 @@ export function SimulationControls() {
         <section className="mt-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4">
           <h3 className="text-lg font-semibold text-emerald-900">Revenue leak contained</h3>
           <p className="mt-2 text-sm text-emerald-900">
-            CatchDrift detected the failure in {DEMO_SCENARIO.detectionDurationMinutes} minutes, linked it to deployment {DEMO_SCENARIO.deploymentIdentifier},
+            CatchDrift detected the failure in {DETECTION_DURATION_MINUTES} minutes, linked it to deployment {DEMO_SCENARIO.deploymentIdentifier},
             and verified recovery across {DEMO_SCENARIO.recoveryWindowCount} consecutive windows.
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>Exposure before recovery: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}</li>
-            <li>Potential full-day exposure: {formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)}</li>
-            <li>Detection time: {DEMO_SCENARIO.detectionDurationMinutes} minutes</li>
+            <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}</li>
+            <li>{PRESENTATION_COPY.exposureLabels.hypotheticalNinetyMinute}: {formatMoneyRangeMinor(EXPOSURE_NINETY_MINUTES.lowMinor, EXPOSURE_NINETY_MINUTES.highMinor)}</li>
+            <li>{PRESENTATION_COPY.exposureLabels.potentialDaily}: {formatMoneyRangeMinor(EXPOSURE_DAILY.lowMinor, EXPOSURE_DAILY.highMinor)}</li>
+            <li>Detection duration: {DETECTION_DURATION_MINUTES} minutes</li>
             <li>Recovery windows verified: {DEMO_SCENARIO.recoveryWindowCount}</li>
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">

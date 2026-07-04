@@ -1,11 +1,31 @@
 import { SimulationControls } from "@/components/simulation-controls";
-import { DEMO_SCENARIO } from "@/lib/constants";
-import { formatMoneyMinor } from "@/lib/format";
+import { formatMoneyRangeMinor } from "@/lib/format";
+import {
+  CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES,
+  DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
+  exposureRangeForMinutes,
+  PRESENTATION_COPY,
+} from "@/lib/presentation-contract";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const detectionCopy = `CatchDrift identified a tracking failure ${DEMO_SCENARIO.detectionDurationMinutes} minutes after deployment, with ${formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} in potential daily spend exposed.`;
+  const detectionDurationMinutes =
+    CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES.detection - CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES.deployment;
+
+  const beforeDetection = exposureRangeForMinutes({
+    lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+    highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+    minutes: detectionDurationMinutes,
+  });
+
+  const daily = exposureRangeForMinutes({
+    lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+    highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+    minutes: 24 * 60,
+  });
+
+  const detectionCopy = `CatchDrift identified a tracking failure ${detectionDurationMinutes} minutes after deployment, with ${formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)} in exposure before detection and ${formatMoneyRangeMinor(daily.lowMinor, daily.highMinor)} in potential daily exposure.`;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -24,7 +44,7 @@ export default async function HomePage() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           <a href="#incident-demo" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
-            Run incident simulation
+            {PRESENTATION_COPY.replayCta}
           </a>
           <a
             href="/architecture"

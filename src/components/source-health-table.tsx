@@ -1,3 +1,5 @@
+import { PRESENTATION_COPY } from "@/lib/presentation-contract";
+
 type SourceHealth = {
   source: string;
   expected_delay_minutes: number;
@@ -49,7 +51,7 @@ export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-4 py-3">Source</th>
-            <th className="px-4 py-3">Last received</th>
+            <th className="px-4 py-3">Last simulated event</th>
             <th className="px-4 py-3">Expected every</th>
             <th className="px-4 py-3">Status</th>
           </tr>
@@ -63,10 +65,18 @@ export function SourceHealthTable({ rows }: { rows: SourceHealth[] }) {
               <td className="px-4 py-3">{formatLastReceived(row.last_successful_event_at)}</td>
               <td className="px-4 py-3">{row.expected_delay_minutes} min</td>
               <td className="px-4 py-3">
+                <div className="text-xs text-slate-600">Data mode</div>
+                <div className="font-medium text-slate-900">{PRESENTATION_COPY.sourceStatusLabels.dataMode}</div>
+                <div className="mt-1 text-xs text-slate-600">Simulation status</div>
                 <div className="font-medium text-slate-900">
-                  {row.suppresses_decisions ? "Live integration stale" : "Live integration fresh"}
+                  {!row.last_successful_event_at
+                    ? PRESENTATION_COPY.sourceStatusLabels.simulationMissing
+                    : row.suppresses_decisions
+                      ? PRESENTATION_COPY.sourceStatusLabels.simulationStale
+                      : PRESENTATION_COPY.sourceStatusLabels.simulationDataAvailable}
                 </div>
-                <div className="text-xs text-slate-600">Historical simulation evidence available</div>
+                <div className="mt-1 text-xs text-slate-600">Live connector</div>
+                <div className="font-medium text-slate-900">{PRESENTATION_COPY.sourceStatusLabels.liveConnectorNotConfigured}</div>
                 {typeof row.overdue_minutes === "number" && row.overdue_minutes > 0 ? (
                   <div className="text-xs text-slate-600">{row.overdue_minutes} min overdue</div>
                 ) : null}

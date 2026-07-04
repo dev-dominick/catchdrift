@@ -21,8 +21,8 @@ CatchDrift is a deployment-aware campaign protection system built for lean media
 1. Open homepage and state objective.
    - "I will show a full healthy-to-recovery flow in under 90 seconds."
 2. Highlight financial framing before clicking.
-   - Spend rate, exposure range, and explicit 90-minute assumption.
-3. Click "Run the 25-second incident replay."
+   - Spend rate, exposure before detection (rate x deployment-to-detection minutes), and explicit 90-minute assumption.
+3. Click "Run incident simulation."
    - Narrate sequence: healthy baseline -> landing-page deployment -> degradation persistence -> incident detection.
 4. Show incident header.
    - Money-first summary, campaign context, severity/confidence, and strongest correlated change.
@@ -31,7 +31,7 @@ CatchDrift is a deployment-aware campaign protection system built for lean media
 6. Show deployment correlation section.
    - Correlation score and "not confirmed causation" qualification using the deployment shown on-screen.
 7. Show financial impact framing.
-   - Current exposure rate, observed duration, cumulative exposure, and assumed additional exposure if discovered later.
+   - Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential daily exposure (all formula-derived from the same canonical rate).
 8. Show deterministic checklist.
    - Explain this is generated from incident type, not free-form AI.
 9. Optionally generate investigation brief.

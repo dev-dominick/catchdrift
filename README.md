@@ -26,9 +26,11 @@ Example from deterministic replay profile:
 
 - Active spend at risk: $900/hour
 - Estimated exposure rate: $230-$310/hour
-- Detection window: 3 degraded intervals (15 minutes in replay)
+- Detection window: 3 degraded intervals (incident detected 10 minutes after deployment)
 - Expected manual discovery delay: 90 minutes
-- Exposure surfaced earlier: $344-$465
+- Exposure before detection (rate x 10 minutes): $38-$52
+- Hypothetical exposure with 90-minute delay (rate x 90 minutes): $345-$465
+- Potential daily exposure (rate x 24 hours): $5,520-$7,440
 
 Demo estimates are based on the controlled replay scenario. They are estimated exposure signals, not confirmed money saved.
 
@@ -61,7 +63,7 @@ The first production rollout would calibrate thresholds against It's Today Media
 ## Run the live demo
 
 1. Open `/`.
-2. Click `Run the 25-second incident replay`.
+2. Click `Run incident simulation`.
 3. Observe active incident state before recovery.
 4. Keep incident detail open and watch status update to recovered.
 

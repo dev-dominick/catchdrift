@@ -220,7 +220,16 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
         [campaignId],
       );
 
-      return Number(evaluations?.count ?? "0") >= 4;
+      const incidentAfterThirdInterval = await queryOne<{ id: string }>(
+        `select id
+         from incidents
+         where campaign_id = $1 and status in ('detected', 'acknowledged', 'investigating')
+         order by detected_at desc
+         limit 1`,
+        [campaignId],
+      );
+
+      return Number(evaluations?.count ?? "0") >= 4 && Boolean(incidentAfterThirdInterval);
     },
     options?.instant,
   );
@@ -235,25 +244,16 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     [campaignId],
   );
 
-  if (incidentAfterThirdInterval) {
-    await out("✓ tracking_integrity_failure@1 triggered");
-    await out("✓ Deployment v42 correlated");
-    await out(`✓ Exposure during detection estimated at ${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}`);
-    await out("✓ Incident persisted with versioned evidence");
-  } else {
-    await out("✓ Incident confirmation pending while replay continues");
+  if (!incidentAfterThirdInterval) {
+    throw new Error("Replay checkpoint completed without an active incident.");
   }
-  await timelinePause(options?.instant, 2000);
 
-  const detectedIncident = await queryOne<{ id: string }>(
-    `select id
-     from incidents
-     where campaign_id = $1
-     order by detected_at desc
-     limit 1`,
-    [campaignId],
-  );
-  latestIncidentId = detectedIncident?.id ?? null;
+  latestIncidentId = incidentAfterThirdInterval.id;
+  await out("✓ tracking_integrity_failure@1 triggered");
+  await out("✓ Deployment v42 correlated");
+  await out(`✓ Exposure during detection estimated at ${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}`);
+  await out("✓ Incident persisted with versioned evidence");
+  await timelinePause(options?.instant, 2000);
 
   if (latestIncidentId) {
     await out(`INCIDENT_ID:${latestIncidentId}`);
@@ -288,36 +288,19 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     async () => {
       await drainReplayQueue(workspaceId);
 
-      const incident = await queryOne<{ id: string; status: string }>(
-        `select id, status
+      const incident = await queryOne<{ id: string; status: string; recovered_at: string | null }>(
+        `select id, status, recovered_at
          from incidents
-         where campaign_id = $1
+         where id = $1
          order by detected_at desc
          limit 1`,
-        [campaignId],
+        [latestIncidentId],
       );
 
-      return Boolean(incident && (incident.status === "recovered" || incident.status === "resolved"));
+      return Boolean(incident?.status === "recovered" && incident.recovered_at);
     },
     options?.instant,
   );
-
-  if (!latestIncidentId) {
-    const resolvedIncident = await queryOne<{ id: string }>(
-      `select id
-       from incidents
-       where campaign_id = $1
-       order by detected_at desc
-       limit 1`,
-      [campaignId],
-    );
-
-    if (resolvedIncident?.id) {
-      latestIncidentId = resolvedIncident.id;
-      await out(`INCIDENT_ID:${latestIncidentId}`);
-      await out(`INCIDENT_URL:/incidents/${latestIncidentId}`);
-    }
-  }
 
   await out("✓ Recovery intervals ingested");
   await out("✓ Campaign recovered");

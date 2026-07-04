@@ -519,6 +519,18 @@ async function findActiveIncident(campaignId: string): Promise<{ id: string; sta
   );
 }
 
+async function getIncidentBaselineEvidence(incidentId: string): Promise<Baseline | null> {
+  const evidence = await queryOne<{ evidence_json: Baseline }>(
+    `select evidence_json
+     from incident_evidence
+     where incident_id = $1 and evidence_type = 'baseline'
+     limit 1`,
+    [incidentId],
+  );
+
+  return evidence?.evidence_json ?? null;
+}
+
 async function evaluateRecovery(params: {
   incidentId: string;
   campaignId: string;
@@ -543,11 +555,13 @@ async function evaluateRecovery(params: {
     return false;
   }
 
+  const recoveredAt = current[current.length - 1]?.intervalEnd ?? new Date();
+
   await query(
     `update incidents
-     set status = 'recovered', recovered_at = now(), updated_at = now()
-     where id = $1 and status = any($2::incident_status[])`,
-    [params.incidentId, ACTIVE_INCIDENT_STATUSES],
+     set status = 'recovered', recovered_at = $2, updated_at = now()
+     where id = $1 and status = any($3::incident_status[])`,
+    [params.incidentId, recoveredAt, ACTIVE_INCIDENT_STATUSES],
   );
 
   await query(
@@ -630,6 +644,7 @@ async function createIncident(params: {
   current: NonNullable<ReturnType<typeof evaluateTrackingIntegrityRule>["current"]>;
   evaluationWindowStart: Date;
   evaluationWindowEnd: Date;
+  detectedAt: Date;
   degradedStreakCount: number;
 }): Promise<{ incidentId: string; exposureLabel: string; correlationScore: number | null }> {
   const exposure = calculateExposureRange(params.baseline, params.current);
@@ -703,7 +718,7 @@ async function createIncident(params: {
         exposure_unit,
         currency,
         detected_at
-      ) values ($1,$2,$3,$4,$5,$6,$7,'detected',$8,$9,'hour',$10,now())
+        ) values ($1,$2,$3,$4,$5,$6,$7,'detected',$8,$9,'hour',$10,$11)
       returning id`,
       [
         params.workspaceId,
@@ -716,6 +731,7 @@ async function createIncident(params: {
         dollarsToMinorUnits(exposure.low),
         dollarsToMinorUnits(exposure.high),
         params.currency,
+        params.detectedAt,
       ],
     );
 
@@ -783,6 +799,7 @@ export async function evaluateCampaign(workspaceId: string, campaignId: string):
   const currentWindow = intervals.slice(-3);
   const evaluationWindowStart = currentWindow[0]?.intervalStart ?? intervals[0].intervalStart;
   const evaluationWindowEnd = currentWindow[currentWindow.length - 1]?.intervalEnd ?? intervals[0].intervalEnd;
+  const detectedAt = currentWindow[currentWindow.length - 1]?.intervalStart ?? evaluationWindowStart;
 
   await persistRuleEvaluation({
     workspaceId,
@@ -801,11 +818,16 @@ export async function evaluateCampaign(workspaceId: string, campaignId: string):
   });
 
   const activeIncident = await findActiveIncident(campaignId);
-  if (activeIncident && result.baseline) {
+  if (activeIncident) {
+    const recoveryBaseline = result.baseline ?? (await getIncidentBaselineEvidence(activeIncident.id));
+    if (!recoveryBaseline) {
+      return;
+    }
+
     await evaluateRecovery({
       incidentId: activeIncident.id,
       campaignId,
-      baseline: result.baseline,
+      baseline: recoveryBaseline,
       intervals,
     });
     return;
@@ -834,6 +856,7 @@ export async function evaluateCampaign(workspaceId: string, campaignId: string):
       current: result.current,
       evaluationWindowStart,
       evaluationWindowEnd,
+      detectedAt,
       degradedStreakCount: result.degradedStreakCount,
     });
   }

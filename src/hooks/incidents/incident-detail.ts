@@ -1,3 +1,5 @@
+import { PRESENTATION_COPY, validateTimelineOrdering } from "@/lib/presentation-contract";
+
 export type TimelineRow = {
   interval_start: string;
   interval_end: string;
@@ -68,6 +70,13 @@ type SourceHealthRow = {
 type TimelineMarker = {
   timestamp: string;
   label: string;
+};
+
+export type TimelineComputation = {
+  markers: TimelineMarker[];
+  detectionDurationMinutes: number | null;
+  recoveryDurationMinutes: number | null;
+  invariant: { valid: boolean; reason?: string };
 };
 
 type IncidentTimelineInputs = {
@@ -200,13 +209,58 @@ export function buildTimelineMarkers(params: {
   detectedAt?: string | null;
   fixedAt?: string | null;
   recoveredAt?: string | null;
-}): TimelineMarker[] {
-  return [
-    params.deployedAt ? { timestamp: params.deployedAt, label: "Deployment" } : null,
-    params.detectedAt ? { timestamp: params.detectedAt, label: "Incident detected" } : null,
-    params.fixedAt ? { timestamp: params.fixedAt, label: "Fix applied" } : null,
-    params.recoveredAt ? { timestamp: params.recoveredAt, label: "Recovery verified" } : null,
-  ].filter((value): value is TimelineMarker => value !== null);
+}): TimelineComputation {
+  const markers: TimelineMarker[] = [];
+
+  if (params.deployedAt) {
+    markers.push({ timestamp: params.deployedAt, label: PRESENTATION_COPY.timelineLabels.deployment });
+  }
+
+  if (params.detectedAt) {
+    markers.push({ timestamp: params.detectedAt, label: PRESENTATION_COPY.timelineLabels.incidentDetected });
+  }
+
+  if (params.fixedAt) {
+    markers.push({ timestamp: params.fixedAt, label: PRESENTATION_COPY.timelineLabels.fixApplied });
+  }
+
+  if (params.recoveredAt) {
+    markers.push({ timestamp: params.recoveredAt, label: PRESENTATION_COPY.timelineLabels.recoveryVerified });
+  }
+
+  const detectionDurationMinutes =
+    params.deployedAt && params.detectedAt
+      ? Math.max(0, Math.round((new Date(params.detectedAt).getTime() - new Date(params.deployedAt).getTime()) / 60_000))
+      : null;
+
+  const recoveryDurationMinutes =
+    params.detectedAt && params.recoveredAt
+      ? Math.max(0, Math.round((new Date(params.recoveredAt).getTime() - new Date(params.detectedAt).getTime()) / 60_000))
+      : null;
+
+  if (params.deployedAt && params.detectedAt && params.fixedAt && params.recoveredAt) {
+    return {
+      markers,
+      detectionDurationMinutes,
+      recoveryDurationMinutes,
+      invariant: validateTimelineOrdering({
+        deploymentAt: params.deployedAt,
+        detectedAt: params.detectedAt,
+        fixedAt: params.fixedAt,
+        recoveredAt: params.recoveredAt,
+      }),
+    };
+  }
+
+  return {
+    markers,
+    detectionDurationMinutes,
+    recoveryDurationMinutes,
+    invariant: {
+      valid: false,
+      reason: "timeline invariant unavailable because one or more event timestamps are missing",
+    },
+  };
 }
 
 export function buildIncidentSummaries(params: {
@@ -215,14 +269,18 @@ export function buildIncidentSummaries(params: {
   degradedAttributed: number;
   deploymentVersion: string;
   deploymentIdentifier: string;
-  detectionDurationMinutes: number;
+  detectionDurationMinutes: number | null;
   exposureAtDetectionLabel: string;
   potentialDailyExposureLabel: string;
 }): { executiveSummary: string; summary: string } {
   const deploymentVersion = params.deploymentVersion || params.deploymentIdentifier;
+  const detectionDurationLabel =
+    typeof params.detectionDurationMinutes === "number"
+      ? `${params.detectionDurationMinutes} minutes`
+      : "after sustained degraded evidence";
 
   return {
     summary: `Paid traffic continued at ${params.hourlySpendLabel}/hour, but attributed conversions fell from ${params.baselineAttributed} to ${params.degradedAttributed}. The strongest related change was deployment ${deploymentVersion}, which removed the click ID from the landing-page redirect.`,
-    executiveSummary: `CatchDrift identified this failure ${params.detectionDurationMinutes} minutes after deployment ${params.deploymentIdentifier}, with ${params.exposureAtDetectionLabel} exposed before detection and ${params.potentialDailyExposureLabel} in potential daily exposure.`,
+    executiveSummary: `CatchDrift identified this failure ${detectionDurationLabel} after deployment ${params.deploymentIdentifier}, with ${params.exposureAtDetectionLabel} in exposure before detection and ${params.potentialDailyExposureLabel} in potential daily exposure.`,
   };
 }
