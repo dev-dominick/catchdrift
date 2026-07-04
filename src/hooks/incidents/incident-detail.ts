@@ -271,7 +271,6 @@ export function buildIncidentSummaries(params: {
   deploymentIdentifier: string;
   detectionDurationMinutes: number | null;
   exposureAtDetectionLabel: string;
-  potentialDailyExposureLabel: string;
 }): { executiveSummary: string; summary: string } {
   const deploymentVersion = params.deploymentVersion || params.deploymentIdentifier;
   const detectionDurationLabel =
@@ -281,6 +280,6 @@ export function buildIncidentSummaries(params: {
 
   return {
     summary: `Paid traffic continued at ${params.hourlySpendLabel}/hour, but attributed conversions fell from ${params.baselineAttributed} to ${params.degradedAttributed}. The strongest related change was deployment ${deploymentVersion}, which removed the click ID from the landing-page redirect.`,
-    executiveSummary: `CatchDrift identified this failure ${detectionDurationLabel} after deployment ${params.deploymentIdentifier}, with ${params.exposureAtDetectionLabel} in exposure before detection and ${params.potentialDailyExposureLabel} as a full-day exposure projection.`,
+    executiveSummary: `CatchDrift identified this failure ${detectionDurationLabel} after deployment ${params.deploymentIdentifier}, with ${params.exposureAtDetectionLabel} in exposure before detection.`,
   };
 }

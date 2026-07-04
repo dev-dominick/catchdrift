@@ -1,7 +1,7 @@
 import { addMinutes } from "date-fns";
 
 export const PRESENTATION_COPY = {
-  replayCta: "Run incident simulation",
+  replayCta: "Watch CatchDrift detect an incident",
   timelineLabels: {
     deployment: "Deployment",
     incidentDetected: "Incident detected",
@@ -15,11 +15,11 @@ export const PRESENTATION_COPY = {
     potentialDaily: "Potential full-day exposure",
   },
   sourceStatusLabels: {
-    dataMode: "Simulation",
-    liveConnectorNotConfigured: "Not connected",
-    simulationDataAvailable: "Simulated evidence fresh",
-    simulationStale: "Simulated evidence stale",
-    simulationMissing: "No simulated evidence",
+    dataMode: "Deterministic replay",
+    liveConnectorNotConfigured: "Not attached in public demo",
+    simulationDataAvailable: "Replay evidence available",
+    simulationStale: "Replay data paused",
+    simulationMissing: "Awaiting replay evidence",
   },
 } as const;
 

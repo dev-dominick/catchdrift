@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CatchDrift",
-  description: "Catch tracking failures before they become wasted media spend.",
+  description: "Catch tracking failures while campaigns are still spending.",
 };
 
 export default function RootLayout({
@@ -39,7 +39,7 @@ export default function RootLayout({
                 Incidents
               </Link>
               <Link href="/sources" className="hover:text-slate-900">
-                Integration status
+                Demo environment
               </Link>
             </nav>
           </div>

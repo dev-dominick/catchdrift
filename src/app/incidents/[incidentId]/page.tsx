@@ -100,15 +100,6 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         })
       : null;
 
-  const potentialDailyExposureLabel =
-    exposureModel == null
-      ? "n/a"
-      : formatMoneyRangeMinor(
-          exposureModel.dailyMinor.lowMinor,
-          exposureModel.dailyMinor.highMinor,
-          String(incident.currency),
-        );
-
   const beforeDetectionExposureLabel =
     exposureModel == null
       ? "n/a"
@@ -137,7 +128,6 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
     deploymentIdentifier: DEMO_SCENARIO.deploymentIdentifier,
     detectionDurationMinutes: timelineComputation.detectionDurationMinutes,
     exposureAtDetectionLabel: beforeDetectionExposureLabel,
-    potentialDailyExposureLabel,
   });
 
   const freshnessAtEvaluation = evaluationFreshness
@@ -164,13 +154,8 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         <p className="mt-2 text-sm leading-6 text-slate-600">{summary}</p>
       </header>
 
-      <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricTile label={PRESENTATION_COPY.exposureLabels.potentialDaily} value={potentialDailyExposureLabel} />
-        <MetricTile label={PRESENTATION_COPY.exposureLabels.beforeDetection} value={beforeDetectionExposureLabel} />
-        <MetricTile
-          label={PRESENTATION_COPY.exposureLabels.hourlyRate}
-          value={formatMoneyRangeMinor(exposureLowPerHourMinor, exposureHighPerHourMinor, String(incident.currency))}
-        />
+      <section className="mb-6 grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
+        <MetricTile label={PRESENTATION_COPY.exposureLabels.beforeDetection} value={beforeDetectionExposureLabel} primary />
         <MetricTile
           label="Detection duration"
           value={
@@ -219,7 +204,6 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
             <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {beforeDetectionExposureLabel}</li>
-            <li>{PRESENTATION_COPY.exposureLabels.potentialDaily}: {potentialDailyExposureLabel}</li>
             <li>
               Detection duration: {timelineComputation.detectionDurationMinutes == null ? "n/a" : `${timelineComputation.detectionDurationMinutes} minutes`}
             </li>
@@ -419,11 +403,13 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value, primary = false }: { label: string; value: string; primary?: boolean }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-base font-semibold text-slate-900">{value}</p>
+    <div className={`rounded-2xl border p-4 shadow-sm ${primary ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-white"}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-wide ${primary ? "text-rose-700" : "text-slate-500"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 font-semibold ${primary ? "text-2xl text-rose-950" : "text-base text-slate-900"}`}>{value}</p>
     </div>
   );
 }

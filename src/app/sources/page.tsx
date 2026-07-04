@@ -10,27 +10,28 @@ export default async function SourcesPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Integration status</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Demo environment and connectors</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Simulation evidence and live integration readiness are separated below.
+          The public demo runs on deterministic replay data. Production connectors are shown separately so
+          disconnected demo sources do not read as failed integrations.
         </p>
       </header>
 
       <div className="mb-4 grid gap-3 md:grid-cols-2">
         <section className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-          <p className="font-semibold">Simulation environment</p>
-          <p className="mt-1">Data mode: Simulation. Historical simulation evidence remains available after the controlled dataset stops advancing.</p>
+          <p className="font-semibold">Demo environment</p>
+          <p className="mt-1">Data mode: deterministic replay. Historical evidence remains available after the controlled dataset stops advancing.</p>
         </section>
         <section className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
-          <p className="font-semibold">Live integrations</p>
-          <p className="mt-1">Live connector not connected in this demonstration. Ad-platform, analytics, deployment, and affiliate-provider feeds are outside this controlled environment.</p>
+          <p className="font-semibold">Production connectors</p>
+          <p className="mt-1">Ad-platform, analytics, deployment, and affiliate-provider feeds are intentionally not attached to this public demo.</p>
         </section>
       </div>
 
       {suppressed ? (
         <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
-          Detection paused. Required live sources are stale, so new incidents are suppressed
-          until fresh data returns.
+          Replay data is no longer advancing, so new simulated incidents are suppressed until the demo
+          refreshes source evidence. Existing replay evidence remains available below.
         </p>
       ) : null}
 

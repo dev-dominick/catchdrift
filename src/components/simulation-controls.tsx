@@ -25,12 +25,8 @@ import {
 type SimulationState = "idle" | "running" | "incident" | "completed" | "error";
 type StoryStageKey =
   | "healthy"
-  | "signal_degrading"
-  | "waiting_confirmation"
-  | "incident_confirmed"
+  | "tracking_failure_detected"
   | "deployment_identified"
-  | "spend_at_risk"
-  | "tracking_restored"
   | "recovery_verified";
 
 type ReplayRunStatus = {
@@ -56,34 +52,14 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
     detail: "Spend, clicks, sessions, and attributed conversions are in expected range.",
   },
   {
-    key: "signal_degrading",
-    title: "Tracking signal begins degrading",
-    detail: "Traffic is still flowing, but session and attributed conversion signals diverge.",
-  },
-  {
-    key: "waiting_confirmation",
-    title: "CatchDrift waits for confirmation",
-    detail: "One bad interval is not enough. CatchDrift waits for sustained degradation.",
-  },
-  {
-    key: "incident_confirmed",
-    title: "Incident confirmed",
-    detail: "Threshold and persistence conditions are met. Incident is created with evidence.",
+    key: "tracking_failure_detected",
+    title: "Tracking failure detected",
+    detail: "Spend and clicks continue, but attributed sessions and conversions fall enough to create an incident.",
   },
   {
     key: "deployment_identified",
-    title: "Recent deployment identified",
+    title: "Relevant change identified",
     detail: `Deployment ${DEMO_SCENARIO.deploymentIdentifier} is the strongest correlated operational change.`,
-  },
-  {
-    key: "spend_at_risk",
-    title: "Exposure at risk",
-    detail: "If untreated, this pattern increases the full-day exposure projection based on the estimated hourly exposure range.",
-  },
-  {
-    key: "tracking_restored",
-    title: "Tracking restored",
-    detail: `Corrective deployment ${DEMO_SCENARIO.correctiveDeploymentIdentifier} restores click_id forwarding on landing-page redirect.`,
   },
   {
     key: "recovery_verified",
@@ -105,25 +81,6 @@ const EXPOSURE_BEFORE_DETECTION = exposureRangeForMinutes({
   highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
   minutes: DETECTION_DURATION_MINUTES,
 });
-
-const EXPOSURE_NINETY_MINUTES = exposureRangeForMinutes({
-  lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
-  highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
-  minutes: 90,
-});
-
-const EXPOSURE_DAILY = exposureRangeForMinutes({
-  lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
-  highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
-  minutes: 24 * 60,
-});
-
-function scaleExposureRange(percent: number): { lowMinor: number; highMinor: number } {
-  return {
-    lowMinor: Math.round((EXPOSURE_BEFORE_DETECTION.lowMinor * percent) / 100),
-    highMinor: Math.round((EXPOSURE_BEFORE_DETECTION.highMinor * percent) / 100),
-  };
-}
 
 const TIMELINE_SERIES = [
   { t: "12:00", spend: 900, clicks: 1010, sessions: 984, conversions: 91 },
@@ -154,52 +111,28 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
   }
 
   if (
+    allLines.includes(`✓ Deployment ${DEMO_SCENARIO.deploymentIdentifier} correlated`) ||
     allLines.includes(`✓ Deployment ${DEMO_SCENARIO.correctiveDeploymentIdentifier} recorded`) ||
-    allLines.includes("✓ Recovery intervals ingested")
-  ) {
-    return "tracking_restored";
-  }
-
-  if (
+    allLines.includes("✓ Recovery intervals ingested") ||
     allLines.includes("✓ Exposure during detection estimated at") ||
     allLines.includes("✓ Exposure calculated at")
   ) {
-    return "spend_at_risk";
-  }
-
-  if (allLines.includes(`✓ Deployment ${DEMO_SCENARIO.deploymentIdentifier} correlated`)) {
     return "deployment_identified";
   }
 
-  if (run.incidentId || run.incidentUrl || allLines.includes("✓ Incident persisted") || allLines.includes("INCIDENT_ID:")) {
-    return "incident_confirmed";
-  }
-
-  if (allLines.includes("✓ Second degraded interval matured")) {
-    return "waiting_confirmation";
-  }
-
-  if (allLines.includes("✓ First degraded interval matured") || run.stage.key === "degradation") {
-    return "signal_degrading";
+  if (
+    run.incidentId ||
+    run.incidentUrl ||
+    allLines.includes("✓ Incident persisted") ||
+    allLines.includes("INCIDENT_ID:") ||
+    allLines.includes("✓ Second degraded interval matured") ||
+    allLines.includes("✓ First degraded interval matured") ||
+    run.stage.key === "degradation"
+  ) {
+    return "tracking_failure_detected";
   }
 
   return "healthy";
-}
-
-function exposureForStage(stage: StoryStageKey): { lowMinor: number; highMinor: number } {
-  if (stage === "healthy") {
-    return { lowMinor: 0, highMinor: 0 };
-  }
-
-  if (stage === "signal_degrading" || stage === "waiting_confirmation") {
-    return scaleExposureRange(25);
-  }
-
-  if (stage === "incident_confirmed" || stage === "deployment_identified") {
-    return scaleExposureRange(60);
-  }
-
-  return EXPOSURE_BEFORE_DETECTION;
 }
 
 export function SimulationControls() {
@@ -218,8 +151,7 @@ export function SimulationControls() {
 
   const running = useMemo(() => state === "running", [state]);
   const activeStageIndex = STAGE_INDEX_BY_KEY[stageKey] + 1;
-  const progressPercent = (activeStageIndex / STORY_STAGES.length) * 100;
-  const stagedExposure = exposureForStage(stageKey);
+  const progressWidthClass = ["w-1/4", "w-1/2", "w-3/4", "w-full"][activeStageIndex - 1] ?? "w-1/4";
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -350,30 +282,15 @@ export function SimulationControls() {
   }
 
   const stage = STORY_STAGES[STAGE_INDEX_BY_KEY[stageKey]];
-  const showExecutiveBrief =
-    stageKey === "incident_confirmed" ||
-    stageKey === "deployment_identified" ||
-    stageKey === "spend_at_risk" ||
-    stageKey === "tracking_restored" ||
-    stageKey === "recovery_verified";
+  const showExecutiveBrief = stageKey !== "healthy";
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          label={PRESENTATION_COPY.exposureLabels.potentialDaily}
-          value={formatMoneyRangeMinor(EXPOSURE_DAILY.lowMinor, EXPOSURE_DAILY.highMinor)}
-        />
+      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
         <MetricCard
           label={PRESENTATION_COPY.exposureLabels.beforeDetection}
           value={formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}
-        />
-        <MetricCard
-          label={PRESENTATION_COPY.exposureLabels.hourlyRate}
-          value={formatMoneyRangeMinor(
-            DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
-            DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
-          )}
+          primary
         />
         <MetricCard label="Detection duration" value={`${DETECTION_DURATION_MINUTES} min`} />
         <MetricCard label="Attribution drop" value={`${DEMO_SCENARIO.attributionDeclinePercent}%`} />
@@ -422,15 +339,9 @@ export function SimulationControls() {
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Guided simulation</p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">{stage.title}</h3>
         <p className="mt-2 text-sm text-slate-700">{statusMessage}</p>
-        <p className="mt-2 text-sm font-semibold text-slate-900">
-          Exposure progression: {formatMoneyRangeMinor(stagedExposure.lowMinor, stagedExposure.highMinor)}
-        </p>
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-full rounded-full bg-slate-900 transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
-          />
+          <div className={`h-full rounded-full bg-slate-900 transition-all duration-500 ${progressWidthClass}`} />
         </div>
       </div>
 
@@ -457,7 +368,7 @@ export function SimulationControls() {
         })}
       </ol>
 
-      {(stageKey === "incident_confirmed" || stageKey === "deployment_identified" || stageKey === "spend_at_risk") ? (
+      {(stageKey === "tracking_failure_detected" || stageKey === "deployment_identified") ? (
         <section className="mt-6 rounded-xl border border-rose-300 bg-rose-50 p-4">
           <h3 className="text-lg font-semibold text-rose-900">Tracking failure confirmed</h3>
           <p className="mt-1 text-sm text-rose-900">
@@ -542,8 +453,6 @@ export function SimulationControls() {
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
             <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}</li>
-            <li>{PRESENTATION_COPY.exposureLabels.hypotheticalNinetyMinute}: {formatMoneyRangeMinor(EXPOSURE_NINETY_MINUTES.lowMinor, EXPOSURE_NINETY_MINUTES.highMinor)}</li>
-            <li>{PRESENTATION_COPY.exposureLabels.potentialDaily}: {formatMoneyRangeMinor(EXPOSURE_DAILY.lowMinor, EXPOSURE_DAILY.highMinor)}</li>
             <li>Detection duration: {DETECTION_DURATION_MINUTES} minutes</li>
             <li>Recovery windows verified: {DEMO_SCENARIO.recoveryWindowCount}</li>
           </ul>
@@ -579,11 +488,13 @@ export function SimulationControls() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, primary = false }: { label: string; value: string; primary?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-base font-semibold text-slate-900">{value}</p>
+    <div className={`rounded-lg border p-3 ${primary ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-slate-50"}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-wide ${primary ? "text-rose-700" : "text-slate-500"}`}>
+        {label}
+      </p>
+      <p className={`mt-1 font-semibold ${primary ? "text-2xl text-rose-950" : "text-base text-slate-900"}`}>{value}</p>
     </div>
   );
 }

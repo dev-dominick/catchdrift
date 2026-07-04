@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { exposureLabel, formatMoneyRangeMinor } from "@/lib/format";
+import { formatMoneyRangeMinor } from "@/lib/format";
 import { DEMO_SCENARIO } from "@/lib/constants";
 import { deriveLifecycleExposureDisplay, PRESENTATION_COPY } from "@/lib/presentation-contract";
 
@@ -95,18 +95,18 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
 
                   return (
                     <li key={incident.id} className="rounded-lg border border-slate-200 p-3">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className={`rounded px-2 py-1 text-xs font-semibold ${severityClass[incident.severity]}`}>
                           {incident.severity} severity
                         </span>
-                        <span className="text-xs uppercase tracking-wide text-slate-500">{statusLabel} status</span>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{statusLabel}</span>
                       </div>
 
                       <p className="mt-2 text-sm font-semibold text-slate-900">{DEMO_SCENARIO.incidentTitle}</p>
                       <p className="mt-1 text-sm text-slate-700">
-                        {incident.campaign_name} · {DEMO_SCENARIO.trafficSource}
+                        {incident.campaign_name}: spend and clicks continued while attributed sessions fell.
                       </p>
-                      <p className="mt-1 text-sm text-slate-700">
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
                         {lifecycleExposure?.label ?? "Exposure window"}: {lifecycleExposure
                           ? formatMoneyRangeMinor(
                               lifecycleExposure.rangeMinor.lowMinor,
@@ -121,9 +121,6 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
                         </p>
                       ) : null}
                       <p className="mt-1 text-sm text-slate-700">Likely cause: {DEMO_SCENARIO.rootCauseSummary}</p>
-                      <p className="mt-1 text-sm text-slate-700">
-                        Exposure rate: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
-                      </p>
 
                       <Link href={`/incidents/${incident.id}`} className="mt-2 inline-block text-sm font-medium text-slate-800 underline">
                         View evidence
