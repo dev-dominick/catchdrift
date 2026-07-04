@@ -1,12 +1,12 @@
 # CatchDrift
 
-CatchDrift detects tracking failures during active campaign spend, estimates financial exposure, verifies recovery, and uses constrained AI to turn persisted evidence into an investigation brief.
+CatchDrift is a paid-media control loop for attribution failures: detect drift, correlate it to operational change, quantify exposure, guide investigation, govern action, and verify recovery before active spend creates unusable campaign data.
 
 ## Submission in 30 seconds
 
 - Live URL: https://catchdrift.media/
 - Repository: https://github.com/dev-dominick/catchdrift
-- Demo path: homepage -> run AI-assisted replay -> incident appears active -> AI/fallback brief available -> recovery verified on incident page
+- Demo path: homepage -> run AI-assisted replay -> attribution failure detected -> exposure quantified -> evidence-backed response path available -> recovery verified on incident page
 
 ## The expensive operational problem
 
@@ -17,7 +17,7 @@ Paid campaigns can continue spending while attribution quality silently degrades
 - what to inspect first;
 - whether recovery is actually complete.
 
-CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
+CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system. The intended buyer takeaway is direct: do not discover tomorrow that today's campaign data became unusable while spend continued.
 
 ## AI-assisted value, deterministic control
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 
 const siteDescription =
-  "AI-assisted tracking failure detection for active ad campaigns, with deterministic incident evidence, exposure estimates, and recovery verification.";
+  "CatchDrift turns paid-media attribution failures into evidence-backed response paths before active spend creates unusable data.";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

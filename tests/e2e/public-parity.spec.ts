@@ -301,7 +301,7 @@ test.describe("public production parity", () => {
 
     await expect(
       page.getByRole("heading", {
-        name: "AI-assisted tracking failure detection for campaigns still spending.",
+        name: "Catch attribution failures before today's spend becomes unusable.",
       }),
     ).toBeVisible();
 

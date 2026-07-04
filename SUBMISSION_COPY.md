@@ -2,21 +2,21 @@
 
 ## 1) Submission title
 
-CatchDrift: AI-Assisted Tracking Failure Detection for Active Campaign Spend
+CatchDrift: Paid-Media Control Loop for Attribution Failures
 
 ## 2) One-sentence summary
 
-CatchDrift protects active ad spend from silent tracking failures by opening deterministic incidents, estimating exposure, verifying recovery, and using constrained AI to summarize persisted evidence for investigation.
+CatchDrift catches attribution breaks while campaigns are still spending, correlates them to operational changes, quantifies exposure, and gives media buyers a governed recovery path with constrained AI investigation support.
 
 ## 3) 15-second pitch
 
-CatchDrift protects active ad spend from silent tracking failures. In this replay, spend stays at $900/hour while attribution degrades after a landing-page deployment. CatchDrift detects the issue after roughly 15 minutes, estimates exposure, generates an AI-assisted investigation brief from persisted evidence, and verifies recovery with deterministic controls.
+CatchDrift prevents a media buyer from discovering tomorrow that today's campaign data became unusable while spend continued. In this replay, a landing-page deployment breaks attribution during $900/hour spend; CatchDrift detects the drift in roughly 15 minutes, quantifies exposure, shows what to inspect first, and verifies recovery with deterministic controls.
 
 ## 4) 60-second pitch
 
-CatchDrift is an AI-assisted campaign protection system for lean media-buying teams. The business problem is simple: campaigns can keep spending while tracking breaks, and delayed reporting makes it hard to connect money at risk to the operational change that caused the symptoms.
+CatchDrift is a paid-media control loop for lean media-buying teams. The business problem is simple: campaigns can keep spending while tracking breaks, and delayed reporting makes it hard to connect money at risk to the operational change that caused the symptoms.
 
-In this replay, spend stays at $900/hour after deployment v42 removes click_id forwarding. Attribution falls while spend remains active, CatchDrift waits for three degraded five-minute windows, then opens a deterministic incident with immutable evidence and roughly $230-$310/hour in estimated exposure. The incident separates exposure accumulated before automated detection ($57-$77), a 90-minute manual-discovery counterfactual ($344-$465), additional estimated exposure surfaced before that delayed review ($287-$387), and potential full-day projection ($5,509-$7,432) from one canonical rate. AI then summarizes the persisted evidence into an investigation brief, but AI never creates incidents, changes exposure, claims causation, verifies recovery, or controls spend. Recovery is deterministic: metrics must return to expected ranges before incident status changes to recovered.
+In this replay, spend stays at $900/hour after deployment v42 removes click_id forwarding. Attribution falls while spend remains active, CatchDrift waits for three degraded five-minute windows, then opens a deterministic incident with immutable evidence and roughly $230-$310/hour in estimated exposure. The product demonstrates the full loop: detect, correlate, quantify, investigate, govern action, and verify recovery. The incident separates exposure accumulated before automated detection ($57-$77), a 90-minute manual-discovery counterfactual ($344-$465), additional estimated exposure surfaced before that delayed review ($287-$387), and potential full-day projection ($5,509-$7,432) from one canonical rate. AI then summarizes the persisted evidence into an investigation brief, but AI never creates incidents, changes exposure, claims causation, verifies recovery, or controls spend. Recovery is deterministic: metrics must return to expected ranges before incident status changes to recovered.
 
 ## 5) Five-minute demo script
 
@@ -45,4 +45,4 @@ In this replay, spend stays at $900/hour after deployment v42 removes click_id f
 
 ## 6) Final interview close
 
-I built CatchDrift to solve one financially meaningful problem well: silent tracking failures during active spend. The product value is earlier detection, clearer exposure, faster investigation, and verified recovery. The detection, exposure, lifecycle, and recovery logic are deterministic and test-covered. AI is visible in the workflow but constrained to investigation support, never control. If I join It's Today Media full-time, I would calibrate thresholds against campaign volume and reporting latency, integrate read-only production signals, and measure pilot outcomes such as time-to-detect, time-to-acknowledge, and potential exposure surfaced earlier.
+I built CatchDrift to solve one financially meaningful problem well: preventing a media buyer from discovering tomorrow that today's campaign data became unusable while spend continued. The product value is earlier detection, clearer exposure, faster investigation, governed action, and verified recovery. The detection, exposure, lifecycle, and recovery logic are deterministic and test-covered. AI is visible in the workflow but constrained to investigation support, never control. If I join It's Today Media full-time, I would calibrate thresholds against campaign volume and reporting latency, integrate read-only production signals, and measure pilot outcomes such as time-to-detect, time-to-acknowledge, and potential exposure surfaced earlier.

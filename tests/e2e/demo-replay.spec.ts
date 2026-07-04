@@ -568,7 +568,7 @@ test("mobile viewport layout remains usable", async ({ page }) => {
   test.skip(test.info().project.name !== "mobile-chrome", "Mobile-specific layout check.");
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /AI-assisted tracking failure/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Catch attribution failures/i })).toBeVisible();
 
   const noHorizontalOverflow = await page.evaluate(() => {
     const root = document.documentElement;

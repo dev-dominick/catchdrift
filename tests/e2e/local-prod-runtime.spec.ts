@@ -23,7 +23,9 @@ test.describe("local production runtime", () => {
     });
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "AI-assisted tracking failure detection for campaigns still spending." })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Catch attribution failures before today's spend becomes unusable." }),
+    ).toBeVisible();
 
     await page.goto("/incidents", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Operational Incident Inbox" })).toBeVisible();
