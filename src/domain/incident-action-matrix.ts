@@ -11,7 +11,7 @@ export type IncidentAction = "acknowledge" | "investigate" | "dismiss" | "resolv
 const ACTIONS_BY_STATUS: Record<IncidentStatus, IncidentAction[]> = {
   detected: ["investigate"],
   acknowledged: ["investigate"],
-  investigating: ["resolve"],
+  investigating: [],
   recovered: ["resolve"],
   resolved: [],
   dismissed: [],

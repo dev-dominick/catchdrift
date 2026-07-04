@@ -59,7 +59,7 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
   {
     key: "deployment_identified",
     title: "Relevant change identified",
-    detail: `Deployment ${DEMO_SCENARIO.deploymentIdentifier} is the strongest correlated operational change.`,
+    detail: `Deployment ${DEMO_SCENARIO.deploymentIdentifier} is the strongest correlated operational change. The AI brief can summarize this persisted evidence, but the score remains deterministic.`,
   },
   {
     key: "recovery_verified",
@@ -140,7 +140,7 @@ export function SimulationControls() {
   const [lines, setLines] = useState<string[]>([]);
   const [stageKey, setStageKey] = useState<StoryStageKey>("healthy");
   const [statusMessage, setStatusMessage] = useState<string>(
-    "Run incident simulation to see CatchDrift detect, explain, and verify recovery.",
+    "Run the replay to see deterministic detection, AI-assisted investigation, and verified recovery.",
   );
   const [paused, setPaused] = useState(false);
   const [incidentUrl, setIncidentUrl] = useState<string | null>(null);

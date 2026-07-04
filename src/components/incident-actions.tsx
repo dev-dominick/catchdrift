@@ -52,6 +52,12 @@ export function IncidentActions({ incidentId, status }: { incidentId: string; st
         <p className="text-sm text-slate-600">No manual actions available for this incident state.</p>
       ) : null}
 
+      {normalized === "investigating" ? (
+        <p className="w-full text-xs text-slate-600">
+          Resolution is enabled after CatchDrift verifies recovery from persisted metrics.
+        </p>
+      ) : null}
+
       {normalized === "recovered" ? (
         <p className="w-full text-xs text-slate-600">
           Recovery is already verified. Resolve after post-incident review is complete.

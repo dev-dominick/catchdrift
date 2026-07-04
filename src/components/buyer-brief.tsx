@@ -47,22 +47,22 @@ export function BuyerBrief({ incidentId }: { incidentId: string }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">Buyer brief</h2>
+        <h2 className="text-lg font-semibold text-slate-900">AI investigation brief</h2>
         <button
           type="button"
           onClick={loadBrief}
           disabled={loading}
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {loading ? "Generating brief..." : "Generate investigation brief"}
+          {loading ? "Generating brief..." : "Generate AI investigation brief"}
         </button>
       </div>
 
       {!data && !error ? (
         <p className="mt-3 text-sm text-slate-600">
-          Optional AI investigation aid generated from persisted evidence. AI may summarize findings
-          and prioritize steps. AI does not create incidents, set severity, calculate exposure, or
-          verify recovery.
+          AI-assisted investigation aid generated from persisted evidence. AI may summarize findings
+          and prioritize inspection steps. AI does not create incidents, set severity, calculate exposure,
+          verify recovery, claim causation, or control campaign spend.
         </p>
       ) : null}
 

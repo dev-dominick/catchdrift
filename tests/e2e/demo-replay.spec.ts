@@ -4,6 +4,8 @@ import { ensureDemoWorkspaceAndCampaign, resetDemoWorkspace } from "../../src/do
 import { query, queryOne } from "../../src/db/sql";
 import { DEMO_WORKSPACE_SLUG } from "../../src/lib/constants";
 
+const REPLAY_CTA = "Run the AI-assisted tracking failure replay";
+
 async function resetDemoViaApi(page: Page) {
   void page;
   await resetDemoWorkspace();
@@ -408,7 +410,7 @@ test("stale source suppression is visible", async ({ page }) => {
 test("homepage has one primary simulation CTA and no campaigns monitored metric", async ({ page }) => {
   await page.goto("/");
 
-  const ctas = page.getByRole("button", { name: "Run incident simulation" });
+  const ctas = page.getByRole("button", { name: REPLAY_CTA });
   await expect(ctas).toHaveCount(1);
   await expect(page.getByText("Campaigns monitored")).toHaveCount(0);
 });
@@ -416,9 +418,9 @@ test("homepage has one primary simulation CTA and no campaigns monitored metric"
 test("integration status summaries render and technical source details are collapsible", async ({ page }) => {
   await page.goto("/sources");
 
-  await expect(page.getByRole("heading", { name: "Integration status" })).toBeVisible();
-  await expect(page.getByText("Simulation environment")).toBeVisible();
-  await expect(page.getByText("Live integrations")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Demo environment and connectors" })).toBeVisible();
+  await expect(page.getByText("Demo environment")).toBeVisible();
+  await expect(page.getByText("Production connectors")).toBeVisible();
 
   const technicalDetails = page.locator("details").first();
   const detailsSummary = page.getByText("View technical source details");
@@ -430,8 +432,8 @@ test("integration status summaries render and technical source details are colla
   await expect(page.getByText("Data mode", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Simulation status", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Live connector", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Simulated evidence fresh", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Not connected", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Replay evidence available", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Not attached in public demo", { exact: true }).first()).toBeVisible();
 });
 
 test("canonical business values stay consistent across homepage, inbox, and incident detail", async ({ page }) => {
@@ -439,7 +441,7 @@ test("canonical business values stay consistent across homepage, inbox, and inci
   await resetDemoViaApi(page);
 
   await expect(page.getByText("Potential full-day exposure", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
+  await expect(page.getByText("$5,509-$7,432", { exact: true })).toBeVisible();
   await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("$57-$77", { exact: true })).toBeVisible();
   await expect(page.getByText("Detection duration")).toBeVisible();
@@ -471,7 +473,7 @@ test("simulation stages drive exposure progression and incident/recovery banners
   await resetDemoViaApi(page);
 
   await expect(page.getByText("Exposure progression: $0")).toBeVisible();
-  await page.getByRole("button", { name: "Run incident simulation" }).click();
+  await page.getByRole("button", { name: REPLAY_CTA }).click();
 
   await expect(page.getByText("Exposure progression: $57-$77")).toBeVisible({ timeout: 90_000 });
 });
@@ -533,7 +535,7 @@ test("mobile viewport layout remains usable", async ({ page }) => {
   test.skip(test.info().project.name !== "mobile-chrome", "Mobile-specific layout check.");
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Catch tracking failures/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /AI-assisted tracking failure/i })).toBeVisible();
 
   const noHorizontalOverflow = await page.evaluate(() => {
     const root = document.documentElement;
@@ -541,5 +543,5 @@ test("mobile viewport layout remains usable", async ({ page }) => {
   });
 
   expect(noHorizontalOverflow).toBe(true);
-  await expect(page.getByRole("button", { name: "Run incident simulation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: REPLAY_CTA })).toBeVisible();
 });

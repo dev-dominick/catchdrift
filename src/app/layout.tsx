@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
+const siteDescription =
+  "AI-assisted tracking failure detection for active ad campaigns, with deterministic incident evidence, exposure estimates, and recovery verification.";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -15,7 +18,20 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CatchDrift",
-  description: "Catch tracking failures while campaigns are still spending.",
+  description: siteDescription,
+  metadataBase: new URL("https://catchdrift.media"),
+  openGraph: {
+    title: "CatchDrift",
+    description: siteDescription,
+    url: "https://catchdrift.media/",
+    siteName: "CatchDrift",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CatchDrift",
+    description: siteDescription,
+  },
 };
 
 export default function RootLayout({

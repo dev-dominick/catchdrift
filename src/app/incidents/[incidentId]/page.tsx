@@ -1,5 +1,6 @@
 import { differenceInMinutes } from "date-fns";
 import { notFound } from "next/navigation";
+import { BuyerBrief } from "@/components/buyer-brief";
 import { EvidenceTimeline } from "@/components/evidence-timeline";
 import { IncidentActions } from "@/components/incident-actions";
 import { IncidentLiveRefresh } from "@/components/incident-live-refresh";
@@ -196,6 +197,10 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
         </div>
       </section>
 
+      <div className="mb-6">
+        <BuyerBrief incidentId={incidentId} />
+      </div>
+
       {(String(incident.status) === "recovered" || String(incident.status) === "resolved") ? (
         <section className="mb-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-emerald-900">Incident resolved</h2>
@@ -267,9 +272,19 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
                     String(incident.currency),
                   )}
             </li>
+            <li>
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.potentialDaily}:</span>{" "}
+              {exposureModel == null
+                ? "n/a"
+                : formatMoneyRangeMinor(
+                    exposureModel.dailyMinor.lowMinor,
+                    exposureModel.dailyMinor.highMinor,
+                    String(incident.currency),
+                  )}
+            </li>
           </ul>
           <p className="mt-3 text-xs text-slate-600">
-            The second value is hypothetical exposure under delayed discovery, not confirmed loss.
+            Delayed-discovery and full-day values are hypothetical projections, not confirmed loss.
           </p>
         </section>
 

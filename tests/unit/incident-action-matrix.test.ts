@@ -8,9 +8,10 @@ describe("incident action matrix", () => {
     expect(isIncidentActionAllowed("detected", "investigate")).toBe(true);
   });
 
-  it("allows resolve for investigating and recovered states", () => {
-    expect(allowedIncidentActions("investigating")).toEqual(["resolve"]);
+  it("allows resolve only after recovery is verified", () => {
+    expect(allowedIncidentActions("investigating")).toEqual([]);
     expect(allowedIncidentActions("recovered")).toEqual(["resolve"]);
+    expect(isIncidentActionAllowed("investigating", "resolve")).toBe(false);
     expect(isIncidentActionAllowed("recovered", "resolve")).toBe(true);
   });
 

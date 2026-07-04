@@ -109,7 +109,7 @@ export async function GET(
     });
   } catch {
     return errorJson(
-      dependencyUnavailableError("BUYER_BRIEF_FAILED", "Buyer brief is temporarily unavailable."),
+      dependencyUnavailableError("BUYER_BRIEF_FAILED", "AI investigation brief is temporarily unavailable."),
       { requestId },
     );
   }

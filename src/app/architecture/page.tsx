@@ -26,6 +26,16 @@ export default function ArchitecturePage() {
       </section>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">AI investigation boundary</h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
+          <li>Deterministic rules create incidents, calculate exposure, score deployment correlation, and verify recovery.</li>
+          <li>AI is limited to an on-demand investigation brief generated from persisted incident evidence.</li>
+          <li>AI may summarize competing interpretations and inspection steps, but it cannot claim causation or control spend.</li>
+          <li>If model configuration is unavailable or output validation fails, CatchDrift falls back to deterministic guidance.</li>
+        </ul>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">What is replay-controlled</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
           <li>Campaign source data values are controlled for deterministic contest replay.</li>

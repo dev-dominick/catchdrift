@@ -15,6 +15,8 @@ type RunStatus = {
   incidentUrl: string | null;
 };
 
+const REPLAY_CTA = "Run the AI-assisted tracking failure replay";
+
 async function resetDemoForParity(page: Page): Promise<void> {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const response = await page.request.post("/api/demo/reset");
@@ -99,7 +101,7 @@ async function pollRunUntilComplete(page: Page, runId: string): Promise<RunStatu
 
 async function startAndCompleteSimulation(page: Page): Promise<RunStatus> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const runButton = page.getByRole("button", { name: "Run incident simulation" });
+    const runButton = page.getByRole("button", { name: REPLAY_CTA });
     if ((await runButton.count()) === 0) {
       await page.goto("/", { waitUntil: "domcontentloaded" });
     }
@@ -184,7 +186,7 @@ async function startAndCompleteSimulation(page: Page): Promise<RunStatus> {
 
 async function waitForIncidentDetailReady(page: Page): Promise<void> {
   const detailHeading = page.getByRole("heading", { name: /Tracking (failure detected|dropped) after deployment/i });
-  const briefHeading = page.getByRole("heading", { name: /Executive incident brief|Buyer brief/i });
+  const briefHeading = page.getByRole("heading", { name: /Executive incident brief|AI investigation brief/i });
   const notFoundHeading = page.getByRole("heading", { name: "404" });
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -218,11 +220,11 @@ test.describe("public production parity", () => {
 
     await expect(
       page.getByRole("heading", {
-        name: "Catch tracking failures before they become wasted media spend.",
+        name: "AI-assisted tracking failure detection for campaigns still spending.",
       }),
     ).toBeVisible();
 
-    await expect(page.getByRole("link", { name: "Run incident simulation" })).toBeVisible();
+    await expect(page.getByRole("link", { name: REPLAY_CTA })).toBeVisible();
     await expect(page.getByText("Potential full-day exposure", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Detection duration", { exact: true }).first()).toBeVisible();
@@ -265,9 +267,9 @@ test.describe("public production parity", () => {
 
     await expect(page).toHaveURL(/\/incidents\//);
     await waitForIncidentDetailReady(page);
-    await expect(page.getByRole("heading", { name: /Executive incident brief|Buyer brief/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Executive incident brief|AI investigation brief/i })).toBeVisible();
     await expect(page.getByText("$57-$77", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
+    await expect(page.getByText("$5,509-$7,432", { exact: true })).toBeVisible();
     await expect(page.getByText(/Recovered|Resolved/).first()).toBeVisible();
 
     await page.getByText("View technical evidence").click();
@@ -286,13 +288,13 @@ test.describe("public production parity", () => {
     await expect(page.getByText("Measured window: deployment to recovery (35 min)")).toBeVisible();
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Simulation environment")).toBeVisible();
-    await expect(page.getByText("Data mode: Simulation.")).toBeVisible();
-    await expect(page.getByText("Live integrations")).toBeVisible();
-    await expect(page.getByText("Live connector not connected in this demonstration.")).toBeVisible();
+    await expect(page.getByText("Demo environment")).toBeVisible();
+    await expect(page.getByText("Data mode: deterministic replay.")).toBeVisible();
+    await expect(page.getByText("Production connectors")).toBeVisible();
+    await expect(page.getByText("Ad-platform, analytics, deployment, and affiliate-provider feeds are intentionally not attached to this public demo.")).toBeVisible();
     await page.getByText("View technical source details").click();
-    await expect(page.getByText("Simulated evidence", { exact: false }).first()).toBeVisible();
-    await expect(page.getByText("Not connected", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Replay evidence", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText("Not attached in public demo", { exact: true }).first()).toBeVisible();
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.goto("/", { waitUntil: "domcontentloaded" });

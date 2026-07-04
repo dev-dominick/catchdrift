@@ -1,12 +1,12 @@
 # CatchDrift
 
-CatchDrift detects when tracking breaks during active campaign spend, estimates financial exposure, and verifies recovery before manual reporting catches up.
+CatchDrift detects tracking failures during active campaign spend, estimates financial exposure, verifies recovery, and uses constrained AI to turn persisted evidence into an investigation brief.
 
 ## Submission in 30 seconds
 
 - Live URL: https://catchdrift.media/
 - Repository: https://github.com/dev-dominick/catchdrift
-- Demo path: homepage -> run live replay -> incident appears active -> recovery verified on incident page
+- Demo path: homepage -> run AI-assisted replay -> incident appears active -> AI/fallback brief available -> recovery verified on incident page
 
 ## The expensive operational problem
 
@@ -18,6 +18,12 @@ Paid campaigns can continue spending while attribution quality silently degrades
 - whether recovery is actually complete.
 
 CatchDrift focuses on this specific failure mode because one high-spend incident detected earlier can justify the system.
+
+## AI-assisted value, deterministic control
+
+CatchDrift leads with AI-assisted investigation, but not AI-controlled operations. Deterministic rules decide whether an incident exists, what exposure range to show, which deployment is strongest evidence, and whether recovery is verified. AI is limited to an on-demand investigation brief generated from persisted structured evidence.
+
+If model configuration is unavailable or output validation fails, CatchDrift falls back to deterministic guidance.
 
 ## Demo outcome and financial exposure
 
@@ -62,9 +68,10 @@ The first production rollout would calibrate thresholds against It's Today Media
 ## Run the live demo
 
 1. Open `/`.
-2. Click `Run incident simulation`.
+2. Click `Run the AI-assisted tracking failure replay`.
 3. Observe active incident state before recovery.
-4. Keep incident detail open and watch status update to recovered.
+4. Generate the AI investigation brief or deterministic fallback from the incident page.
+5. Keep incident detail open and watch status update to recovered.
 
 CLI equivalent:
 
@@ -107,7 +114,7 @@ flowchart LR
   D --> E[Rule Evaluations]
   D --> F[Incidents + Evidence]
   F --> G[Incident UI]
-  F --> H[Optional AI Buyer Brief]
+  F --> H[Constrained AI Investigation Brief]
   I[Demo Replay Orchestrator] --> B
   I --> C
   I --> J[Demo Run State API]
@@ -124,7 +131,7 @@ Runtime details:
 
 CatchDrift keeps all financial and incident decisions deterministic.
 
-AI is optional and limited to an investigation brief generated from persisted structured evidence. AI may summarize and prioritize inspection steps, but AI may not:
+AI is optional and limited to an investigation brief generated from persisted structured evidence. AI may summarize competing interpretations and prioritize inspection steps, but AI may not:
 
 - create incidents;
 - change severity or confidence;
@@ -133,6 +140,14 @@ AI is optional and limited to an investigation brief generated from persisted st
 - control campaign spend.
 
 If model configuration is unavailable or output is invalid, CatchDrift falls back to deterministic guidance.
+
+## GitHub repository metadata
+
+Recommended repository settings:
+
+- Description: AI-assisted tracking-failure detection for active ad campaigns, with deterministic incident evidence, exposure estimates, and recovery verification.
+- Website: https://catchdrift.media/
+- Topics: advertising, attribution, campaign-monitoring, ai, nextjs, postgresql, incident-response, media-buying, demo
 
 ## Local Setup
 

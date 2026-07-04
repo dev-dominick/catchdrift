@@ -1,7 +1,13 @@
 import { addMinutes } from "date-fns";
 
 export const PRESENTATION_COPY = {
-  replayCta: "Watch CatchDrift detect an incident",
+  replayCta: "Run the AI-assisted tracking failure replay",
+  aiReplayCta: "Run the AI-assisted tracking failure replay",
+  deterministicGuardrailsCta: "Review deterministic guardrails",
+  aiPositioning:
+    "AI-assisted tracking failure detection for campaigns still spending, governed by deterministic evidence and recovery checks.",
+  aiSafetySummary:
+    "Deterministic rules create incidents, calculate exposure, and verify recovery. AI summarizes persisted evidence for investigation only.",
   timelineLabels: {
     deployment: "Deployment",
     incidentDetected: "Incident detected",
