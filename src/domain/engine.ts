@@ -799,7 +799,7 @@ export async function evaluateCampaign(workspaceId: string, campaignId: string):
   const currentWindow = intervals.slice(-3);
   const evaluationWindowStart = currentWindow[0]?.intervalStart ?? intervals[0].intervalStart;
   const evaluationWindowEnd = currentWindow[currentWindow.length - 1]?.intervalEnd ?? intervals[0].intervalEnd;
-  const detectedAt = currentWindow[currentWindow.length - 1]?.intervalStart ?? evaluationWindowStart;
+  const detectedAt = evaluationWindowEnd;
 
   await persistRuleEvaluation({
     workspaceId,

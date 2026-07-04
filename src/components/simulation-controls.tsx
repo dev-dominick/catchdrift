@@ -78,7 +78,7 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
   {
     key: "spend_at_risk",
     title: "Exposure at risk",
-    detail: "If untreated, this pattern increases potential daily exposure based on the estimated hourly exposure range.",
+    detail: "If untreated, this pattern increases the full-day exposure projection based on the estimated hourly exposure range.",
   },
   {
     key: "tracking_restored",
@@ -126,21 +126,21 @@ function scaleExposureRange(percent: number): { lowMinor: number; highMinor: num
 }
 
 const TIMELINE_SERIES = [
-  { t: "12:00", spend: 640, clicks: 1010, sessions: 984, conversions: 91 },
-  { t: "12:05", spend: 640, clicks: 1002, sessions: 978, conversions: 90 },
-  { t: "12:10", spend: 640, clicks: 1007, sessions: 972, conversions: 88 },
-  { t: "12:15", spend: 640, clicks: 1003, sessions: 805, conversions: 54 },
-  { t: "12:20", spend: 640, clicks: 1005, sessions: 744, conversions: 36 },
-  { t: "12:25", spend: 640, clicks: 1004, sessions: 732, conversions: 28 },
-  { t: "12:30", spend: 640, clicks: 1002, sessions: 746, conversions: 34 },
-  { t: "12:35", spend: 640, clicks: 1006, sessions: 896, conversions: 71 },
-  { t: "12:40", spend: 640, clicks: 1001, sessions: 953, conversions: 86 },
-  { t: "12:45", spend: 640, clicks: 1003, sessions: 972, conversions: 90 },
+  { t: "12:00", spend: 900, clicks: 1010, sessions: 984, conversions: 91 },
+  { t: "12:05", spend: 900, clicks: 1002, sessions: 978, conversions: 90 },
+  { t: "12:10", spend: 900, clicks: 1007, sessions: 972, conversions: 88 },
+  { t: "12:15", spend: 900, clicks: 1003, sessions: 805, conversions: 54 },
+  { t: "12:20", spend: 900, clicks: 1005, sessions: 744, conversions: 36 },
+  { t: "12:25", spend: 900, clicks: 1004, sessions: 732, conversions: 28 },
+  { t: "12:30", spend: 900, clicks: 1002, sessions: 746, conversions: 34 },
+  { t: "12:35", spend: 900, clicks: 1006, sessions: 896, conversions: 71 },
+  { t: "12:40", spend: 900, clicks: 1001, sessions: 953, conversions: 86 },
+  { t: "12:45", spend: 900, clicks: 1003, sessions: 972, conversions: 90 },
 ];
 
 const TIMELINE_MARKERS = [
   { at: "12:15", label: PRESENTATION_COPY.timelineLabels.deployment },
-  { at: "12:25", label: PRESENTATION_COPY.timelineLabels.incidentDetected },
+  { at: "12:30", label: PRESENTATION_COPY.timelineLabels.incidentDetected },
   { at: "12:30", label: PRESENTATION_COPY.timelineLabels.fixApplied },
   { at: "12:45", label: PRESENTATION_COPY.timelineLabels.recoveryVerified },
 ];
@@ -480,7 +480,7 @@ export function SimulationControls() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="t" />
               <YAxis yAxisId="volume" />
-              <YAxis yAxisId="spend" orientation="right" domain={[500, 700]} />
+              <YAxis yAxisId="spend" orientation="right" domain={[800, 1000]} />
               <Tooltip />
               <Legend />
               {TIMELINE_MARKERS.map((marker) => (

@@ -41,11 +41,11 @@ describe("presentation contract parity", () => {
       lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
       highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
       deployedAt: "2026-07-04T12:15:00.000Z",
-      detectedAt: "2026-07-04T12:25:00.000Z",
+      detectedAt: "2026-07-04T12:30:00.000Z",
     });
 
-    expect(model.detectionDurationMinutes).toBe(10);
-    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 3833, highMinor: 5167 });
+    expect(model.detectionDurationMinutes).toBe(15);
+    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5750, highMinor: 7750 });
     expect(model.ninetyMinuteMinor).toEqual({ lowMinor: 34500, highMinor: 46500 });
     expect(model.dailyMinor).toEqual({ lowMinor: 552000, highMinor: 744000 });
   });
@@ -55,7 +55,7 @@ describe("presentation contract parity", () => {
       lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
       highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
       deployedAt: "2026-07-04T12:15:00.000Z",
-      detectedAt: "2026-07-04T12:25:00.000Z",
+      detectedAt: "2026-07-04T12:30:00.000Z",
       status: "detected",
     });
 
@@ -63,15 +63,15 @@ describe("presentation contract parity", () => {
       lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
       highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
       deployedAt: "2026-07-04T12:15:00.000Z",
-      detectedAt: "2026-07-04T12:25:00.000Z",
+      detectedAt: "2026-07-04T12:30:00.000Z",
       recoveredAt: "2026-07-04T12:45:00.000Z",
       status: "recovered",
     });
 
     expect(active).toMatchObject({
       label: PRESENTATION_COPY.exposureLabels.beforeDetection,
-      rangeMinor: { lowMinor: 3833, highMinor: 5167 },
-      durationMinutes: 10,
+      rangeMinor: { lowMinor: 5750, highMinor: 7750 },
+      durationMinutes: 15,
       windowLabel: "deployment to detection",
     });
     expect(recovered).toMatchObject({
@@ -87,12 +87,12 @@ describe("presentation contract parity", () => {
     const submission = read("SUBMISSION_COPY.md");
 
     expect(readme).toContain(`Click \`${PRESENTATION_COPY.replayCta}\`.`);
-    expect(readme).toContain("Exposure before detection (rate x 10 minutes): $38-$52");
+    expect(readme).toContain("Exposure before detection (rate x 15 minutes): $58-$78");
     expect(readme).toContain("Hypothetical exposure with 90-minute delay (rate x 90 minutes): $345-$465");
-    expect(readme).toContain("Potential daily exposure (rate x 24 hours): $5,520-$7,440");
+    expect(readme).toContain("Potential full-day exposure projection (rate x 24 hours): $5,520-$7,440");
 
     expect(submission).toContain(`Click "${PRESENTATION_COPY.replayCta}".`);
-    expect(submission).toContain("Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential daily exposure");
+    expect(submission).toContain("Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential full-day exposure projection");
   });
 
   it("uses centralized replay CTA and exposure derivations across core presentation surfaces", () => {

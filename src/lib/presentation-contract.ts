@@ -12,7 +12,7 @@ export const PRESENTATION_COPY = {
     beforeDetection: "Exposure before detection",
     hourlyRate: "Estimated hourly exposure",
     hypotheticalNinetyMinute: "Hypothetical exposure with a 90-minute reporting delay",
-    potentialDaily: "Potential daily exposure",
+    potentialDaily: "Potential full-day exposure",
   },
   sourceStatusLabels: {
     dataMode: "Simulation",
@@ -30,7 +30,7 @@ export const DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR = {
 
 export const CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES = {
   deployment: 60,
-  detection: 70,
+  detection: 75,
   fix: 75,
   recovery: 90,
 } as const;

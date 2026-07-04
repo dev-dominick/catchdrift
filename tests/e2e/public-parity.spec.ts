@@ -223,7 +223,7 @@ test.describe("public production parity", () => {
     ).toBeVisible();
 
     await expect(page.getByRole("link", { name: "Run incident simulation" })).toBeVisible();
-    await expect(page.getByText("Potential daily exposure", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Potential full-day exposure", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Detection duration", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Attribution drop", { exact: true }).first()).toBeVisible();
@@ -266,7 +266,7 @@ test.describe("public production parity", () => {
     await expect(page).toHaveURL(/\/incidents\//);
     await waitForIncidentDetailReady(page);
     await expect(page.getByRole("heading", { name: /Executive incident brief|Buyer brief/i })).toBeVisible();
-    await expect(page.getByText("$38-$52", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("$58-$78", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
     await expect(page.getByText(/Recovered|Resolved/).first()).toBeVisible();
 

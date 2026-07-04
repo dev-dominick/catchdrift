@@ -236,8 +236,8 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   );
 
   await out("✓ Third degraded interval matured");
-  const incidentAfterThirdInterval = await queryOne<{ id: string }>(
-    `select id
+  const incidentAfterThirdInterval = await queryOne<{ id: string; detected_at: string }>(
+    `select id, detected_at
      from incidents
      where campaign_id = $1 and status in ('detected', 'acknowledged', 'investigating')
      order by detected_at desc
@@ -254,7 +254,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
     highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
     deployedAt: deploymentAt.toISOString(),
-    detectedAt: thirdDegradedStart.toISOString(),
+    detectedAt: String(incidentAfterThirdInterval.detected_at),
   });
   await out("✓ tracking_integrity_failure@1 triggered");
   await out("✓ Deployment v42 correlated");

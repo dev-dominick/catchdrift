@@ -18,10 +18,10 @@ describe("demo scenario canonical values", () => {
       lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
       highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
       deployedAt: "2026-07-04T12:15:00.000Z",
-      detectedAt: "2026-07-04T12:25:00.000Z",
+      detectedAt: "2026-07-04T12:30:00.000Z",
     });
 
-    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 3833, highMinor: 5167 });
+    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5750, highMinor: 7750 });
     expect(model.dailyMinor).toEqual({ lowMinor: 552000, highMinor: 744000 });
   });
 });

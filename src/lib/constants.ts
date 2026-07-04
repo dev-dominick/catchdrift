@@ -67,7 +67,7 @@ export const DEMO_SCENARIO = {
   attributionDeclinePercent: 25,
   sessionDeclinePercent: 18,
   conversionDeclinePercent: 82,
-  detectionDurationMinutes: 10,
+  detectionDurationMinutes: 15,
   recoveryWindowCount: 3,
   deploymentIdentifier: "v42",
   correctiveDeploymentIdentifier: "v43",

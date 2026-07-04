@@ -25,7 +25,7 @@ export default async function HomePage() {
     minutes: 24 * 60,
   });
 
-  const detectionCopy = `CatchDrift identified a tracking failure ${detectionDurationMinutes} minutes after deployment, with ${formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)} in exposure before detection and ${formatMoneyRangeMinor(daily.lowMinor, daily.highMinor)} in potential daily exposure.`;
+  const detectionCopy = `CatchDrift identified a tracking failure approximately ${detectionDurationMinutes} minutes after deployment, with ${formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)} in exposure before detection and ${formatMoneyRangeMinor(daily.lowMinor, daily.highMinor)} as a full-day exposure projection.`;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
