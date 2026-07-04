@@ -8,7 +8,8 @@ import {
   resetDemoWorkspace,
 } from "@/domain/engine";
 import { query, queryOne } from "@/db/sql";
-import { DEMO_EXTERNAL_CAMPAIGN_ID } from "@/lib/constants";
+import { DEMO_EXTERNAL_CAMPAIGN_ID, DEMO_STORY } from "@/lib/constants";
+import { formatMoneyMinor } from "@/lib/format";
 
 const DEMO_REPLAY_INLINE_WORKER_ID = "demo-replay-inline";
 const DEMO_REPLAY_JOB_BATCH_SIZE = 500;
@@ -237,7 +238,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   if (incidentAfterThirdInterval) {
     await out("✓ tracking_integrity_failure@1 triggered");
     await out("✓ Deployment v42 correlated");
-    await out("✓ Exposure calculated at $230-$310/hour");
+    await out(`✓ Exposure during detection estimated at ${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}`);
     await out("✓ Incident persisted with versioned evidence");
   } else {
     await out("✓ Incident confirmation pending while replay continues");

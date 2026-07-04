@@ -18,8 +18,9 @@ export default async function SourcesPage() {
       </header>
 
       <p className="mb-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-        Demo dataset - replay completed. Historical replay evidence remains available even when the
-        dataset is not receiving new events.
+        Demo dataset - replay completed. Historical incident evidence remains valid. Sources may appear
+        stale because the replay is no longer advancing. Live third-party integrations are not connected
+        in this demonstration environment.
       </p>
 
       {suppressed ? (

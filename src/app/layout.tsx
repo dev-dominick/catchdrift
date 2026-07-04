@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CatchDrift",
-  description: "Catch tracking failures before they burn through more spend.",
+  description: "Catch tracking failures before they become wasted media spend.",
 };
 
 export default function RootLayout({

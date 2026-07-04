@@ -56,10 +56,17 @@ export const RECOVERABLE_INCIDENT_STATUSES = [
 ] as const;
 
 export const DEMO_STORY = {
+  spendPerHourMinor: 90000,
   detectionMinutes: 14,
-  estimatedExposureMinor: 64000,
+  exposureDuringDetectionMinor: 64000,
+  delayedDiscoveryExposureMinor: 384000,
   potentialDailyExposureMinor: 384000,
   campaignsMonitored: 1,
-  incidentCause: "Landing-page redirect removed click_id forwarding in deployment abc123.",
-  incidentCauseShort: "Deployment abc123 removed click_id forwarding.",
+  conversionDeclinePercent: 82,
+  attributionDeclinePercent: 25,
+  deploymentId: "v42",
+  correctiveDeploymentId: "v43",
+  recoveryMinutes: 15,
+  incidentCause: "Landing-page redirect removed click_id forwarding in deployment v42.",
+  incidentCauseShort: "Deployment v42 removed click_id forwarding.",
 } as const;

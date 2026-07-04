@@ -2,31 +2,57 @@
 
 import { useState } from "react";
 
-const ACTIONS = [
-  { label: "Start investigation", value: "investigate" },
-  { label: "Mark resolved", value: "resolve" },
-] as const;
+type IncidentStatus = "detected" | "acknowledged" | "investigating" | "recovered" | "resolved" | "dismissed";
 
-export function IncidentActions({ incidentId }: { incidentId: string }) {
+function actionsForStatus(status: IncidentStatus) {
+  if (status === "detected" || status === "acknowledged") {
+    return [
+      { label: "Start investigation", value: "investigate" },
+      { label: "Mark resolved", value: "resolve" },
+    ] as const;
+  }
+
+  if (status === "investigating" || status === "recovered") {
+    return [{ label: "Mark resolved", value: "resolve" }] as const;
+  }
+
+  return [] as const;
+}
+
+export function IncidentActions({ incidentId, status }: { incidentId: string; status: string }) {
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const normalized = (status.toLowerCase() as IncidentStatus) || "detected";
+  const actions = actionsForStatus(normalized);
 
   async function triggerAction(action: string) {
+    setError(null);
     setRunning(action);
-    await fetch(`/api/incidents/${incidentId}`, {
-      method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ action }),
-    });
-    setRunning(null);
-    window.location.reload();
+    try {
+      const response = await fetch(`/api/incidents/${incidentId}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!response.ok) {
+        setError(`Action failed (${response.status}).`);
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      setError("Action failed. Try again.");
+    } finally {
+      setRunning(null);
+    }
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      {ACTIONS.map((action) => (
+      {actions.map((action) => (
         <button
           key={action.value}
           type="button"
@@ -37,6 +63,16 @@ export function IncidentActions({ incidentId }: { incidentId: string }) {
           {running === action.value ? "Applying..." : action.label}
         </button>
       ))}
+      {actions.length === 0 ? (
+        <p className="text-sm text-slate-600">No manual actions available for this incident state.</p>
+      ) : null}
+
+      {normalized === "recovered" ? (
+        <p className="w-full text-xs text-slate-600">
+          Recovery is already verified. Resolve after post-incident review is complete.
+        </p>
+      ) : null}
+
       {error ? <p className="w-full text-sm text-rose-700">{error}</p> : null}
     </div>
   );

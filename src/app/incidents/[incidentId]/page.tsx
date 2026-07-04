@@ -180,13 +180,24 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
 
   const rows = parseTimelineRows(timeline as unknown[]);
   const degradedWindowStart = new Date(metric.evaluationWindowStart);
+  const detectedAt = new Date(String(incident.detected_at));
 
   const baselineRow =
     [...rows]
       .reverse()
       .find((row) => new Date(row.interval_end).getTime() <= degradedWindowStart.getTime()) ?? rows[0];
 
-  const degradedRow = rows[rows.length - 1];
+  const degradedRows = rows.filter((row) => {
+    const rowStart = new Date(row.interval_start).getTime();
+    return rowStart >= degradedWindowStart.getTime() && rowStart <= detectedAt.getTime();
+  });
+  const degradedRow = degradedRows.reduce<TimelineRow | null>((lowest, row) => {
+    if (!lowest) {
+      return row;
+    }
+
+    return Number(row.attributed_conversions) < Number(lowest.attributed_conversions) ? row : lowest;
+  }, null) ?? rows[rows.length - 1];
 
   const baselineAttributed = toNumber(baselineRow.attributed_conversions);
   const degradedAttributed = toNumber(degradedRow.attributed_conversions);
@@ -225,7 +236,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
   const summary = `Paid traffic continued at ${formatMoney(
     baseline.hourlySpend,
   )}/hour, but attributed conversions fell from ${baselineAttributed} to ${degradedAttributed}. The strongest related change was deployment ${deploymentCandidate?.version ?? "v42"}, which removed the click ID from the landing-page redirect.`;
-  const executiveSummary = `CatchDrift identified this failure ${DEMO_STORY.detectionMinutes} minutes after deployment abc123, with ${formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} of spend currently exposed and ${formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)} in potential daily exposure.`;
+  const executiveSummary = `CatchDrift identified this failure ${DEMO_STORY.detectionMinutes} minutes after deployment ${DEMO_STORY.deploymentId}, with ${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} of spend currently exposed and ${formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)} in potential daily exposure.`;
 
   const freshnessAtEvaluation = evaluationFreshness
     ? evaluationFreshness.fresh
@@ -252,20 +263,20 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
       </header>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricTile label="Spend protected" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
+        <MetricTile label="Spend protected" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
         <MetricTile label="Time to detection" value={`${DEMO_STORY.detectionMinutes} min`} />
         <MetricTile label="Campaigns monitored" value={String(DEMO_STORY.campaignsMonitored)} />
-        <MetricTile label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
-        <MetricTile label="Incident cause" value="Deployment abc123" />
+        <MetricTile label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
+        <MetricTile label="Incident cause" value={`Deployment ${DEMO_STORY.deploymentId}`} />
       </section>
 
       <section className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-rose-900">Executive incident brief</h2>
         <p className="mt-3 text-sm text-rose-900">
           CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
-          Spend and clicks remained normal, but attributed sessions dropped 82% following deployment
-          abc123. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}.
-          Recommended action: verify the landing-page tracking script introduced by deployment abc123.
+          Spend and clicks remained normal, but attributed sessions dropped {DEMO_STORY.conversionDeclinePercent}% following deployment
+          {" "}{DEMO_STORY.deploymentId}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}.
+          Recommended action: verify the landing-page tracking script introduced by deployment {DEMO_STORY.deploymentId}.
         </p>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -296,7 +307,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
             three consecutive evaluation windows.
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}</li>
+            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}</li>
             <li>Potential daily exposure: {formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)}</li>
             <li>Detection time: {DEMO_STORY.detectionMinutes} minutes</li>
           </ul>
@@ -365,7 +376,7 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
           <h2 className="text-lg font-semibold text-slate-900">Recommended action</h2>
           <p className="mt-3 text-sm text-slate-700">{recommendedAction}</p>
           <div className="mt-4">
-            <IncidentActions incidentId={incidentId} />
+            <IncidentActions incidentId={incidentId} status={String(incident.status)} />
           </div>
         </section>
 

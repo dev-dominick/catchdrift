@@ -25,7 +25,7 @@ export default async function HomePage() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           <a href="#incident-demo" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
-            Run the 90-second incident demo
+            Run incident simulation
           </a>
           <a
             href="/architecture"
@@ -40,8 +40,8 @@ export default async function HomePage() {
       </div>
 
       <p className="mt-4 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-        Demo dataset only. Replay status, historical incident evidence, and integration readiness are
-        shown separately so simulation data does not appear as live monitoring failure.
+        Demo dataset only. Simulation status, historical incident evidence, and integration readiness are
+        shown separately so controlled demo data does not appear as live monitoring failure.
       </p>
     </div>
   );

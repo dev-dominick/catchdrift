@@ -16,7 +16,7 @@ export default async function IncidentsPage() {
           Incidents are grouped by active, investigating, recovered, and resolved states.
         </p>
         <Link href="/" className="mt-3 inline-block text-sm font-medium text-slate-800 underline">
-          Back to live replay
+          Back to incident simulation
         </Link>
       </header>
 

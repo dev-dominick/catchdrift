@@ -67,17 +67,17 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
   {
     key: "deployment_identified",
     title: "Recent deployment identified",
-    detail: "Deployment abc123 is the strongest correlated operational change.",
+    detail: `Deployment ${DEMO_STORY.deploymentId} is the strongest correlated operational change.`,
   },
   {
     key: "spend_at_risk",
-    title: `${formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} of spend now at risk`,
-    detail: `If untreated, this pattern represents up to ${formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)} in daily exposed spend.`,
+    title: `${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} of spend now at risk`,
+    detail: `If untreated, this pattern represents up to ${formatMoneyMinor(DEMO_STORY.delayedDiscoveryExposureMinor)} in delayed-discovery exposure.`,
   },
   {
     key: "tracking_restored",
     title: "Tracking restored",
-    detail: "A corrective release restores click_id forwarding on landing-page redirect.",
+    detail: `Corrective deployment ${DEMO_STORY.correctiveDeploymentId} restores click_id forwarding on landing-page redirect.`,
   },
   {
     key: "recovery_verified",
@@ -302,11 +302,11 @@ export function SimulationControls() {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricCard label="Spend protected" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
+        <MetricCard label="Spend protected" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
         <MetricCard label="Time to detection" value={`${DEMO_STORY.detectionMinutes} min`} />
         <MetricCard label="Campaigns monitored" value={String(DEMO_STORY.campaignsMonitored)} />
-        <MetricCard label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)} />
-        <MetricCard label="Incident cause" value="Deployment abc123" />
+        <MetricCard label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
+        <MetricCard label="Incident cause" value={`Deployment ${DEMO_STORY.deploymentId}`} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -327,7 +327,7 @@ export function SimulationControls() {
             onClick={togglePause}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
           >
-            {paused ? "Resume" : "Pause"}
+            {paused ? "Resume simulation" : "Pause simulation"}
           </button>
         )}
 
@@ -337,7 +337,7 @@ export function SimulationControls() {
             onClick={runSimulation}
             className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
           >
-            Restart simulation
+            Restart
           </button>
         )}
 
@@ -361,7 +361,7 @@ export function SimulationControls() {
         </div>
       </div>
 
-      <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4" aria-label="Replay stages">
+      <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4" aria-label="Simulation stages">
         {STORY_STAGES.map((item, index) => {
           const currentIndex = STAGE_INDEX_BY_KEY[stageKey];
           const active = item.key === stageKey;
@@ -422,9 +422,9 @@ export function SimulationControls() {
           <h3 className="text-base font-semibold text-rose-900">Executive incident brief</h3>
           <p className="mt-2 text-sm text-rose-900">
             CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
-            Spend and clicks remained normal, but attributed sessions dropped 82% following
-            deployment abc123. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}.
-            Recommended action: verify the landing-page tracking script introduced by deployment abc123.
+            Spend and clicks remained normal, but attributed sessions dropped {DEMO_STORY.conversionDeclinePercent}% following
+            deployment {DEMO_STORY.deploymentId}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}.
+            Recommended action: verify the landing-page tracking script introduced by deployment {DEMO_STORY.deploymentId}.
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -434,11 +434,11 @@ export function SimulationControls() {
             />
             <BriefBlock
               title="Evidence"
-              body="Spend and clicks stable. Sessions and attributed conversions dropped sharply after deployment. Correlation score ranked deployment abc123 highest."
+              body={`Spend and clicks stable. Sessions and attributed conversions dropped sharply after deployment. Correlation score ranked deployment ${DEMO_STORY.deploymentId} highest.`}
             />
             <BriefBlock
               title="Recommended investigation"
-              body="Check click_id forwarding, landing-page tracking script load order, and redirect query parameter handling in deployment abc123."
+              body={`Check click_id forwarding, landing-page tracking script load order, and redirect query parameter handling in deployment ${DEMO_STORY.deploymentId}.`}
             />
             <BriefBlock
               title="What CatchDrift intentionally did not automate"
@@ -456,7 +456,7 @@ export function SimulationControls() {
             three consecutive evaluation windows.
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.estimatedExposureMinor)}</li>
+            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}</li>
             <li>Potential daily exposure: {formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)}</li>
             <li>Detection time: {DEMO_STORY.detectionMinutes} minutes</li>
           </ul>
@@ -482,7 +482,7 @@ export function SimulationControls() {
 
       <div className="mt-4 rounded-md bg-slate-950 p-3 text-xs text-slate-100">
         {lines.length === 0 ? (
-          <p className="text-slate-400">Replay log appears here once the run starts.</p>
+          <p className="text-slate-400">Simulation log appears here once the run starts.</p>
         ) : (
           <ul className="space-y-1">
             {lines.map((line, index) => (
