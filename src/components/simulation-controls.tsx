@@ -14,6 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import { DEMO_SCENARIO } from "@/lib/constants";
+import { RUN_DEMO_REPLAY_EVENT } from "@/lib/demo-replay-events";
 import { formatMoneyRangeMinor } from "@/lib/format";
 import {
   CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES,
@@ -270,6 +271,15 @@ export function SimulationControls() {
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
   }
+
+  useEffect(() => {
+    function handleReplayLaunch() {
+      void runSimulation();
+    }
+
+    window.addEventListener(RUN_DEMO_REPLAY_EVENT, handleReplayLaunch);
+    return () => window.removeEventListener(RUN_DEMO_REPLAY_EVENT, handleReplayLaunch);
+  });
 
   function togglePause() {
     const next = !paused;

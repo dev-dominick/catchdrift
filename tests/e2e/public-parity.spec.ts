@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { HERO_REPLAY_CTA_LABEL } from "../../src/lib/demo-replay-events";
 
 type Failure = {
   kind: "console" | "request";
@@ -305,7 +306,7 @@ test.describe("public production parity", () => {
       }),
     ).toBeVisible();
 
-    await expect(page.getByRole("link", { name: REPLAY_CTA })).toBeVisible();
+    await expect(page.getByRole("button", { name: HERO_REPLAY_CTA_LABEL })).toBeVisible();
     await expect(page.getByText("Potential full-day exposure", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Detection duration", { exact: true }).first()).toBeVisible();

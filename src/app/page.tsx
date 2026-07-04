@@ -1,5 +1,7 @@
+import { HeroReplayLauncher } from "@/components/hero-replay-launcher";
 import { SimulationControls } from "@/components/simulation-controls";
 import { DEMO_SCENARIO } from "@/lib/constants";
+import { REPLAY_DEMO_SECTION_ID } from "@/lib/demo-replay-events";
 import { formatMoneyMinor, formatMoneyRangeMinor } from "@/lib/format";
 import {
   CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES,
@@ -89,9 +91,7 @@ export default async function HomePage() {
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              <a href="#incident-demo" className="rounded-md bg-cyan-300 px-3 py-2 text-sm font-semibold text-slate-950">
-                {PRESENTATION_COPY.replayCta}
-              </a>
+              <HeroReplayLauncher />
               <a
                 href="/architecture"
                 className="rounded-md border border-slate-500 px-3 py-2 text-sm font-semibold text-slate-100"
@@ -158,7 +158,7 @@ export default async function HomePage() {
         <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{detectionCopy}</p>
       </section>
 
-      <div id="incident-demo" className="mt-6 scroll-mt-6">
+      <div id={REPLAY_DEMO_SECTION_ID} className="mt-6 scroll-mt-6">
         <SimulationControls />
       </div>
 
