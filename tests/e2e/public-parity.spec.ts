@@ -39,7 +39,7 @@ function collectFailures(page: Page) {
       return;
     }
 
-    if (/analytics|doubleclick|google-analytics|gtag|collect/i.test(url)) {
+    if (/analytics|doubleclick|google-analytics|gtag|collect|cdn-cgi\/rum/i.test(url)) {
       return;
     }
 
