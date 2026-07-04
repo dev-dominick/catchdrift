@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { DEMO_STORY } from "@/lib/constants";
+import { DEMO_SCENARIO } from "@/lib/constants";
 import { formatMoneyMinor } from "@/lib/format";
 
 type SimulationState = "idle" | "running" | "incident" | "completed" | "error";
@@ -67,17 +67,17 @@ const STORY_STAGES: Array<{ key: StoryStageKey; title: string; detail: string }>
   {
     key: "deployment_identified",
     title: "Recent deployment identified",
-    detail: `Deployment ${DEMO_STORY.deploymentId} is the strongest correlated operational change.`,
+    detail: `Deployment ${DEMO_SCENARIO.deploymentIdentifier} is the strongest correlated operational change.`,
   },
   {
     key: "spend_at_risk",
-    title: `${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} of spend now at risk`,
-    detail: `If untreated, this pattern represents up to ${formatMoneyMinor(DEMO_STORY.delayedDiscoveryExposureMinor)} in delayed-discovery exposure.`,
+    title: `${formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} of spend now at risk`,
+    detail: `If untreated, this pattern represents up to ${formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} in potential daily exposure.`,
   },
   {
     key: "tracking_restored",
     title: "Tracking restored",
-    detail: `Corrective deployment ${DEMO_STORY.correctiveDeploymentId} restores click_id forwarding on landing-page redirect.`,
+    detail: `Corrective deployment ${DEMO_SCENARIO.correctiveDeploymentIdentifier} restores click_id forwarding on landing-page redirect.`,
   },
   {
     key: "recovery_verified",
@@ -118,7 +118,10 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
     return "recovery_verified";
   }
 
-  if (allLines.includes("✓ Deployment v43 recorded") || allLines.includes("✓ Recovery intervals ingested")) {
+  if (
+    allLines.includes(`✓ Deployment ${DEMO_SCENARIO.correctiveDeploymentIdentifier} recorded`) ||
+    allLines.includes("✓ Recovery intervals ingested")
+  ) {
     return "tracking_restored";
   }
 
@@ -126,7 +129,7 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
     return "spend_at_risk";
   }
 
-  if (allLines.includes("✓ Deployment v42 correlated")) {
+  if (allLines.includes(`✓ Deployment ${DEMO_SCENARIO.deploymentIdentifier} correlated`)) {
     return "deployment_identified";
   }
 
@@ -145,12 +148,28 @@ function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
   return "healthy";
 }
 
+function exposureForStage(stage: StoryStageKey): number {
+  if (stage === "healthy") {
+    return DEMO_SCENARIO.stagedExposureMinor.healthy;
+  }
+
+  if (stage === "signal_degrading" || stage === "waiting_confirmation") {
+    return DEMO_SCENARIO.stagedExposureMinor.degradation;
+  }
+
+  if (stage === "incident_confirmed" || stage === "deployment_identified") {
+    return DEMO_SCENARIO.stagedExposureMinor.confirmation;
+  }
+
+  return DEMO_SCENARIO.stagedExposureMinor.detected;
+}
+
 export function SimulationControls() {
   const [state, setState] = useState<SimulationState>("idle");
   const [lines, setLines] = useState<string[]>([]);
   const [stageKey, setStageKey] = useState<StoryStageKey>("healthy");
   const [statusMessage, setStatusMessage] = useState<string>(
-    "Run live incident simulation to see CatchDrift detect, explain, and verify recovery.",
+    "Run incident simulation to see CatchDrift detect, explain, and verify recovery.",
   );
   const [paused, setPaused] = useState(false);
   const [incidentUrl, setIncidentUrl] = useState<string | null>(null);
@@ -162,6 +181,7 @@ export function SimulationControls() {
   const running = useMemo(() => state === "running", [state]);
   const activeStageIndex = STAGE_INDEX_BY_KEY[stageKey] + 1;
   const progressPercent = (activeStageIndex / STORY_STAGES.length) * 100;
+  const stagedExposureMinor = exposureForStage(stageKey);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -193,7 +213,7 @@ export function SimulationControls() {
     }
 
     if (run.status === "failed") {
-      const safeMessage = run.publicMessage ?? "Replay failed before completion.";
+      const safeMessage = run.publicMessage ?? "Simulation failed before completion.";
       const reference = run.publicReference ? ` Reference: ${run.publicReference}.` : "";
       setState("error");
       setStatusMessage(`${safeMessage}${reference}`.trim());
@@ -229,7 +249,7 @@ export function SimulationControls() {
 
     if (response.status !== 202) {
       const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-      const message = body?.error?.message ?? `Replay failed to start (${response.status}).`;
+      const message = body?.error?.message ?? `Simulation failed to start (${response.status}).`;
       if (pollSessionRef.current !== currentPollSession) {
         return;
       }
@@ -257,7 +277,7 @@ export function SimulationControls() {
           return;
         }
         setState("error");
-        setStatusMessage(`Unable to fetch replay status (${statusResponse.status}).`);
+        setStatusMessage(`Unable to fetch simulation status (${statusResponse.status}).`);
         return;
       }
 
@@ -301,12 +321,11 @@ export function SimulationControls() {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricCard label="Spend protected" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
-        <MetricCard label="Time to detection" value={`${DEMO_STORY.detectionMinutes} min`} />
-        <MetricCard label="Campaigns monitored" value={String(DEMO_STORY.campaignsMonitored)} />
-        <MetricCard label="Estimated loss avoided" value={formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)} />
-        <MetricCard label="Incident cause" value={`Deployment ${DEMO_STORY.deploymentId}`} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Potential daily exposure" value={formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} />
+        <MetricCard label="Exposure before detection" value={formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} />
+        <MetricCard label="Detection time" value={`${DEMO_SCENARIO.detectionDurationMinutes} min`} />
+        <MetricCard label="Attribution drop" value={`${DEMO_SCENARIO.attributionDeclinePercent}%`} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -317,7 +336,7 @@ export function SimulationControls() {
             onClick={runSimulation}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Run live incident simulation
+            Run incident simulation
           </button>
         ) : null}
 
@@ -352,6 +371,9 @@ export function SimulationControls() {
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Guided simulation</p>
         <h3 className="mt-1 text-lg font-semibold text-slate-900">{stage.title}</h3>
         <p className="mt-2 text-sm text-slate-700">{statusMessage}</p>
+        <p className="mt-2 text-sm font-semibold text-slate-900">
+          Exposure progression: {formatMoneyMinor(stagedExposureMinor)}
+        </p>
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
           <div
@@ -383,6 +405,18 @@ export function SimulationControls() {
           );
         })}
       </ol>
+
+      {(stageKey === "incident_confirmed" || stageKey === "deployment_identified" || stageKey === "spend_at_risk") ? (
+        <section className="mt-6 rounded-xl border border-rose-300 bg-rose-50 p-4">
+          <h3 className="text-lg font-semibold text-rose-900">Tracking failure confirmed</h3>
+          <p className="mt-1 text-sm text-rose-900">
+            Spend remains active while attributed sessions are down by {DEMO_SCENARIO.attributionDeclinePercent}%.
+          </p>
+          <p className="mt-2 text-base font-semibold text-rose-900">
+            {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} exposed before detection
+          </p>
+        </section>
+      ) : null}
 
       <section className="mt-6 rounded-xl border border-slate-200 p-4">
         <h3 className="text-base font-semibold text-slate-900">Before and after incident timeline</h3>
@@ -422,9 +456,9 @@ export function SimulationControls() {
           <h3 className="text-base font-semibold text-rose-900">Executive incident brief</h3>
           <p className="mt-2 text-sm text-rose-900">
             CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
-            Spend and clicks remained normal, but attributed sessions dropped {DEMO_STORY.conversionDeclinePercent}% following
-            deployment {DEMO_STORY.deploymentId}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}.
-            Recommended action: verify the landing-page tracking script introduced by deployment {DEMO_STORY.deploymentId}.
+            Spend and clicks remained normal, but attributed sessions dropped {DEMO_SCENARIO.conversionDeclinePercent}% following
+            deployment {DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}.
+            Recommended action: {DEMO_SCENARIO.recommendedAction}
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -434,11 +468,11 @@ export function SimulationControls() {
             />
             <BriefBlock
               title="Evidence"
-              body={`Spend and clicks stable. Sessions and attributed conversions dropped sharply after deployment. Correlation score ranked deployment ${DEMO_STORY.deploymentId} highest.`}
+              body={`Spend and clicks stable. Sessions and attributed conversions dropped sharply after deployment. Correlation score ranked deployment ${DEMO_SCENARIO.deploymentIdentifier} highest.`}
             />
             <BriefBlock
               title="Recommended investigation"
-              body={`Check click_id forwarding, landing-page tracking script load order, and redirect query parameter handling in deployment ${DEMO_STORY.deploymentId}.`}
+              body={DEMO_SCENARIO.recommendedAction}
             />
             <BriefBlock
               title="What CatchDrift intentionally did not automate"
@@ -450,20 +484,21 @@ export function SimulationControls() {
 
       {state === "completed" ? (
         <section className="mt-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4">
-          <h3 className="text-lg font-semibold text-emerald-900">Incident resolved</h3>
+          <h3 className="text-lg font-semibold text-emerald-900">Revenue leak contained</h3>
           <p className="mt-2 text-sm text-emerald-900">
-            CatchDrift verified that session and conversion signals returned to expected range for
-            three consecutive evaluation windows.
+            CatchDrift detected the failure in {DEMO_SCENARIO.detectionDurationMinutes} minutes, linked it to deployment {DEMO_SCENARIO.deploymentIdentifier},
+            and verified recovery across {DEMO_SCENARIO.recoveryWindowCount} consecutive windows.
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>Estimated exposure limited: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}</li>
-            <li>Potential daily exposure: {formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)}</li>
-            <li>Detection time: {DEMO_STORY.detectionMinutes} minutes</li>
+            <li>Exposure before recovery: {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)}</li>
+            <li>Potential full-day exposure: {formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)}</li>
+            <li>Detection time: {DEMO_SCENARIO.detectionDurationMinutes} minutes</li>
+            <li>Recovery windows verified: {DEMO_SCENARIO.recoveryWindowCount}</li>
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
             {incidentUrl ? (
               <Link href={incidentUrl} className="rounded-md bg-emerald-900 px-3 py-2 text-sm font-semibold text-white">
-                View full evidence
+                View incident evidence
               </Link>
             ) : null}
             <button
@@ -473,9 +508,6 @@ export function SimulationControls() {
             >
               Restart simulation
             </button>
-            <Link href="/architecture" className="rounded-md border border-emerald-700 px-3 py-2 text-sm font-semibold text-emerald-900">
-              Explore architecture
-            </Link>
           </div>
         </section>
       ) : null}

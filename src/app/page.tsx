@@ -1,11 +1,11 @@
 import { SimulationControls } from "@/components/simulation-controls";
-import { DEMO_STORY } from "@/lib/constants";
+import { DEMO_SCENARIO } from "@/lib/constants";
 import { formatMoneyMinor } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const detectionCopy = `CatchDrift identified a tracking failure ${DEMO_STORY.detectionMinutes} minutes after deployment, with ${formatMoneyMinor(DEMO_STORY.potentialDailyExposureMinor)} in daily spend exposed.`;
+  const detectionCopy = `CatchDrift identified a tracking failure ${DEMO_SCENARIO.detectionDurationMinutes} minutes after deployment, with ${formatMoneyMinor(DEMO_SCENARIO.potentialDailyExposureMinor)} in potential daily spend exposed.`;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -15,9 +15,8 @@ export default async function HomePage() {
           Catch tracking failures before they become wasted media spend.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-          CatchDrift monitors the relationship between ad spend, clicks, sessions, conversions,
-          deployments, and affiliate reporting, then builds an evidence-backed incident when those
-          signals drift apart.
+          Most tracking failures do not stop ad spend. They silently destroy attribution while campaigns
+          continue running.
         </p>
         <p className="mt-2 max-w-3xl rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium leading-6 text-rose-900">
           {detectionCopy}
@@ -40,8 +39,8 @@ export default async function HomePage() {
       </div>
 
       <p className="mt-4 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-        Demo dataset only. Simulation status, historical incident evidence, and integration readiness are
-        shown separately so controlled demo data does not appear as live monitoring failure.
+        Controlled simulation environment. Historical simulation evidence remains queryable after the
+        scenario completes.
       </p>
     </div>
   );

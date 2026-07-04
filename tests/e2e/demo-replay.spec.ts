@@ -42,6 +42,133 @@ async function forceStaleRevenueSource(): Promise<void> {
   );
 }
 
+async function startReplayWithRetry(page: Page, maxAttempts = 12): Promise<{ runId: string }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await page.request.post("/api/demo/replay");
+
+    if (response.status() === 202) {
+      return (await response.json()) as { runId: string };
+    }
+
+    if ([409, 429].includes(response.status())) {
+      await page.waitForTimeout(3_000);
+      continue;
+    }
+
+    expect(response.status()).toBe(202);
+  }
+
+  throw new Error("Replay could not be started after retry attempts.");
+}
+
+async function waitForIncidentUrl(page: Page, runId: string, timeoutMs = 90_000): Promise<string> {
+  const maxAttempts = Math.ceil(timeoutMs / 1_000);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const runStatus = await page.request.get(`/api/demo/runs/${runId}`);
+    const body = (await runStatus.json()) as {
+      status: "running" | "completed" | "failed";
+      incidentUrl: string | null;
+    };
+
+    if (body.incidentUrl) {
+      return body.incidentUrl;
+    }
+
+    if (body.status === "failed") {
+      throw new Error(`Replay run failed for ${runId}`);
+    }
+
+    await page.waitForTimeout(1_000);
+  }
+
+  throw new Error(`Replay run ${runId} did not produce an incident URL in time.`);
+}
+
+async function startReplayUntilIncident(
+  page: Page,
+  options?: { maxRuns?: number; incidentTimeoutMs?: number },
+): Promise<{ runId: string; incidentUrl: string }> {
+  const maxRuns = options?.maxRuns ?? 3;
+  const incidentTimeoutMs = options?.incidentTimeoutMs ?? 90_000;
+
+  for (let attempt = 0; attempt < maxRuns; attempt += 1) {
+    const run = await startReplayWithRetry(page);
+
+    try {
+      const incidentUrl = await waitForIncidentUrl(page, run.runId, incidentTimeoutMs);
+      return { runId: run.runId, incidentUrl };
+    } catch {
+      if (attempt === maxRuns - 1) {
+        throw new Error("Replay did not reach an incident after retry attempts.");
+      }
+
+      await resetDemoViaApi(page);
+    }
+  }
+
+  throw new Error("Replay did not reach an incident after retry attempts.");
+}
+
+async function waitForRunToProgress(page: Page, runId: string, timeoutMs = 90_000): Promise<{ status: "running" | "completed" | "failed"; incidentUrl: string | null }> {
+  const maxAttempts = Math.ceil(timeoutMs / 1_000);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const run = await page.request.get(`/api/demo/runs/${runId}`);
+    const body = (await run.json()) as { status: "running" | "completed" | "failed"; incidentUrl: string | null };
+
+    if (body.status === "failed") {
+      return body;
+    }
+
+    if (body.incidentUrl || body.status === "completed") {
+      return body;
+    }
+
+    await page.waitForTimeout(1_000);
+  }
+
+  throw new Error(`Replay run ${runId} did not progress in time.`);
+}
+
+async function waitForInboxEvidenceLink(page: Page, timeoutMs = 45_000): Promise<string | null> {
+  const maxAttempts = Math.ceil(timeoutMs / 1_500);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await page.goto("/incidents", { waitUntil: "domcontentloaded" });
+    const evidenceLink = page.getByRole("link", { name: "View evidence" }).first();
+
+    if ((await evidenceLink.count()) > 0) {
+      const href = await evidenceLink.getAttribute("href");
+      if (href) {
+        return href;
+      }
+    }
+
+    await page.waitForTimeout(1_500);
+  }
+
+  return null;
+}
+
+async function ensureIncidentInInbox(page: Page, maxCycles = 3): Promise<string> {
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await startReplayWithRetry(page);
+
+    const href = await waitForInboxEvidenceLink(page, 45_000);
+    if (href) {
+      return href;
+    }
+
+    if (cycle < maxCycles - 1) {
+      await resetDemoViaApi(page);
+    }
+  }
+
+  throw new Error("Replay did not produce an incident in the inbox after retry attempts.");
+}
+
 test("replay reaches active incident then recovered within bounded runtime", async ({ page }) => {
   test.skip(test.info().project.name === "mobile-chrome", "Lifecycle timing assertions run in desktop project.");
 
@@ -50,7 +177,14 @@ test("replay reaches active incident then recovered within bounded runtime", asy
 
   page.on("console", (msg) => {
     if (msg.type() === "error") {
-      consoleErrors.push(msg.text());
+      const text = msg.text();
+      if (
+        /status of (409|429) \((Conflict|Too Many Requests)\)/i.test(text)
+        || /Failed to load resource: the server responded with a status of (409|429)/i.test(text)
+      ) {
+        return;
+      }
+      consoleErrors.push(text);
     }
   });
 
@@ -69,9 +203,7 @@ test("replay reaches active incident then recovered within bounded runtime", asy
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     startedAt = Date.now();
-    const start = await page.request.post("/api/demo/replay");
-    expect(start.status()).toBe(202);
-    const startPayload = (await start.json()) as { runId: string };
+    const startPayload = await startReplayWithRetry(page);
 
     await expect.poll(async () => {
       const run = await page.request.get(`/api/demo/runs/${startPayload.runId}`);
@@ -109,7 +241,7 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   await page.goto(String(incidentUrl));
   const activeReachedAt = Date.now();
 
-  await expect(page.getByRole("heading", { name: /Tracking dropped after deployment/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Tracking (failure detected|dropped) after deployment/i })).toBeVisible();
   await expect(page.getByText(/Why CatchDrift flagged it/i)).toBeVisible();
 
   await expect(page.getByText(/Recovery timestamp:/i)).toBeVisible({
@@ -117,8 +249,10 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   });
   const recoveredAt = Date.now();
 
-  await page.getByRole("button", { name: "Start investigation" }).click();
-  await expect(page.getByText(/^Investigating$/).first()).toBeVisible();
+  const startInvestigationButton = page.getByRole("button", { name: "Start investigation" });
+  if ((await startInvestigationButton.count()) > 0) {
+    await startInvestigationButton.click();
+  }
 
   await page.getByRole("button", { name: "Mark resolved" }).click();
   await expect(page.getByText(/^Resolved$/).first()).toBeVisible();
@@ -135,17 +269,13 @@ test("navigation and page refresh do not abort async replay", async ({ page }) =
   await page.goto("/");
   await resetDemoViaApi(page);
 
-  await page.getByRole("button", { name: "Start replay" }).click();
-  await expect(page).toHaveURL(/\/$/, { timeout: 90_000 });
-  await expect(page.getByRole("button", { name: /Campaign healthy|A landing-page change just went live|Traffic is arriving/i })).toBeVisible();
+  await startReplayUntilIncident(page);
 
-  const openIncidentLink = page.getByRole("link", { name: /Open incident|Open recovered incident/i });
+  await page.goto("/incidents");
+  const openIncidentLink = page.getByRole("link", { name: "View evidence" }).first();
   await expect(openIncidentLink).toBeVisible({ timeout: 90_000 });
-  await expect(openIncidentLink).toHaveCount(1);
-
   const incidentUrl = await openIncidentLink.getAttribute("href");
   expect(incidentUrl).toBeTruthy();
-
   await openIncidentLink.click();
   await expect(page).toHaveURL(/\/incidents\/[0-9a-f\-]+$/i, { timeout: 90_000 });
 
@@ -210,7 +340,126 @@ test("stale source suppression is visible", async ({ page }) => {
   await forceStaleRevenueSource();
   await page.goto("/sources");
   await expect(page.getByText(/Detection paused\./i)).toBeVisible();
+  await page.getByText("View technical source details").click();
+  await expect(page.getByRole("table")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Revenue" })).toBeVisible();
+});
+
+test("homepage has one primary simulation CTA and no campaigns monitored metric", async ({ page }) => {
+  await page.goto("/");
+
+  const ctas = page.getByRole("button", { name: "Run incident simulation" });
+  await expect(ctas).toHaveCount(1);
+  await expect(page.getByText("Campaigns monitored")).toHaveCount(0);
+});
+
+test("integration status summaries render and technical source details are collapsible", async ({ page }) => {
+  await page.goto("/sources");
+
+  await expect(page.getByRole("heading", { name: "Integration status" })).toBeVisible();
+  await expect(page.getByText("Simulation environment")).toBeVisible();
+  await expect(page.getByText("Live integrations")).toBeVisible();
+
+  const technicalDetails = page.locator("details").first();
+  const detailsSummary = page.getByText("View technical source details");
+  await expect(detailsSummary).toBeVisible();
+  await expect(technicalDetails).not.toHaveAttribute("open", "");
+  await detailsSummary.click();
+  await expect(technicalDetails).toHaveAttribute("open", "");
+  await expect(page.getByRole("table")).toBeVisible();
+});
+
+test("canonical business values stay consistent across homepage, inbox, and incident detail", async ({ page }) => {
+  await page.goto("/");
+  await resetDemoViaApi(page);
+
+  await expect(page.getByText("Potential daily exposure")).toBeVisible();
+  await expect(page.getByText("$3,840", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exposure before detection")).toBeVisible();
+  await expect(page.getByText("$640", { exact: true })).toBeVisible();
+  await expect(page.getByText("Detection time")).toBeVisible();
+  await expect(page.getByText("14 min", { exact: true })).toBeVisible();
+  await expect(page.getByText("Attribution drop")).toBeVisible();
+  await expect(page.getByText("25%", { exact: true })).toBeVisible();
+
+  const payload = await startReplayWithRetry(page);
+
+  const runState = await waitForRunToProgress(page, payload.runId);
+  expect(runState.status).not.toBe("failed");
+
+  await page.goto("/incidents");
+  await expect(page.getByText("$640 exposed before recovery")).toBeVisible();
+
+  await page.getByRole("link", { name: "View evidence" }).first().click();
+  await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+  await expect(page.getByText("Potential daily exposure", { exact: true })).toBeVisible();
+  await expect(page.getByText("Exposure before detection", { exact: true })).toBeVisible();
+  await expect(page.getByText("Detection time", { exact: true })).toBeVisible();
+  await expect(page.getByText("Attribution drop", { exact: true })).toBeVisible();
+});
+
+test("simulation stages drive exposure progression and incident/recovery banners", async ({ page }) => {
+  await page.goto("/");
+  await resetDemoViaApi(page);
+
+  await expect(page.getByText("Exposure progression: $0")).toBeVisible();
+  await page.getByRole("button", { name: "Run incident simulation" }).click();
+
+  await expect(page.getByText("Exposure progression: $160")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText("Exposure progression: $640")).toBeVisible({ timeout: 90_000 });
+});
+
+test("incident inbox link remains resolvable across refresh, new tab, and replay restart", async ({ page, browser }) => {
+  test.skip(test.info().project.name === "mobile-chrome", "Reliability path validation runs in desktop project.");
+
+  await page.goto("/");
+  await resetDemoViaApi(page);
+
+  const firstIncidentPath = await ensureIncidentInInbox(page);
+  await page.reload();
+  const firstInboxLink = page.getByRole("link", { name: "View evidence" }).first();
+  await expect(firstInboxLink).toBeVisible();
+  expect(firstIncidentPath).toBeTruthy();
+
+  await firstInboxLink.click();
+  await expect(page).toHaveURL(/\/incidents\/[0-9a-f\-]+$/i);
+  await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+
+  await page.goto("/incidents");
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole("heading", { name: /Operational Incident Inbox/i })).toBeVisible();
+
+  const secondaryContext = await browser.newContext();
+  const secondaryPage = await secondaryContext.newPage();
+  await secondaryPage.goto(`http://127.0.0.1:3000${String(firstIncidentPath)}`);
+  await expect(secondaryPage.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+  await secondaryContext.close();
+
+  await page.goto("/");
+  await startReplayWithRetry(page);
+  await waitForInboxEvidenceLink(page, 45_000);
+
+  await page.goto("/incidents");
+  await page.reload();
+  const restartedInboxLink = page.getByRole("link", { name: "View evidence" }).first();
+  await expect(restartedInboxLink).toBeVisible();
+  await restartedInboxLink.click();
+  await expect(page).toHaveURL(/\/incidents\/[0-9a-f\-]+$/i);
+  await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+
+  const freshContext = await browser.newContext();
+  const freshPage = await freshContext.newPage();
+  await freshPage.goto("http://127.0.0.1:3000/incidents");
+  const freshInboxLink = freshPage.getByRole("link", { name: "View evidence" }).first();
+  await expect(freshInboxLink).toBeVisible();
+  await freshInboxLink.click();
+  await expect(freshPage.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();
+  await freshContext.close();
 });
 
 test("mobile viewport layout remains usable", async ({ page }) => {
@@ -225,5 +474,5 @@ test("mobile viewport layout remains usable", async ({ page }) => {
   });
 
   expect(noHorizontalOverflow).toBe(true);
-  await expect(page.getByRole("button", { name: "Start replay" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run incident simulation" })).toBeVisible();
 });

@@ -32,6 +32,15 @@ type DemoRunRecord = {
   completed_at: string | null;
 };
 
+async function incidentExists(incidentId: string): Promise<boolean> {
+  const row = await queryOne<{ id: string }>(
+    `select id from incidents where id = $1 limit 1`,
+    [incidentId],
+  );
+
+  return Boolean(row?.id);
+}
+
 function buildPublicErrorReference(): string {
   return `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
@@ -163,8 +172,11 @@ async function insertDemoRun(params: {
 
 async function appendRunLine(runId: string, line: string): Promise<void> {
   const stage = classifyStage(line);
-  const incidentId = line.startsWith("INCIDENT_ID:") ? line.replace("INCIDENT_ID:", "").trim() : null;
-  const incidentUrl = line.startsWith("INCIDENT_URL:") ? line.replace("INCIDENT_URL:", "").trim() : null;
+  const rawIncidentId = line.startsWith("INCIDENT_ID:") ? line.replace("INCIDENT_ID:", "").trim() : null;
+  const rawIncidentUrl = line.startsWith("INCIDENT_URL:") ? line.replace("INCIDENT_URL:", "").trim() : null;
+
+  const incidentId = rawIncidentId;
+  const incidentUrl = rawIncidentUrl;
 
   await query(
     `update demo_runs
@@ -349,26 +361,41 @@ export async function resetForSession(sessionId: string, resetAction: () => Prom
 }
 
 export async function getReplayRunForSession(runId: string, sessionId: string): Promise<DemoRunRecord | null> {
-  return queryOne<DemoRunRecord>(
+  const run = await queryOne<DemoRunRecord>(
     `select
-      id,
-      session_id,
-      operation,
-      status,
-      stage_key,
-      stage_label,
-      stage_index,
-      stage_total,
-      incident_id,
-      incident_url,
-      coalesce(log_lines, '[]'::jsonb) as log_lines,
-      public_reference,
-      public_message,
-      started_at,
-      completed_at
-     from demo_runs
-     where id = $1 and session_id = $2 and operation = 'replay'
+      dr.id,
+      dr.session_id,
+      dr.operation,
+      dr.status,
+      dr.stage_key,
+      dr.stage_label,
+      dr.stage_index,
+      dr.stage_total,
+      case when i.id is null then null else dr.incident_id end as incident_id,
+      case when i.id is null then null else dr.incident_url end as incident_url,
+      coalesce(dr.log_lines, '[]'::jsonb) as log_lines,
+      dr.public_reference,
+      dr.public_message,
+      dr.started_at,
+      dr.completed_at
+     from demo_runs dr
+     left join incidents i on i.id = dr.incident_id
+     where dr.id = $1 and dr.session_id = $2 and dr.operation = 'replay'
      limit 1`,
     [runId, sessionId],
   );
+
+  if (!run) {
+    return null;
+  }
+
+  if (run.incident_id && !(await incidentExists(run.incident_id))) {
+    return {
+      ...run,
+      incident_id: null,
+      incident_url: null,
+    };
+  }
+
+  return run;
 }

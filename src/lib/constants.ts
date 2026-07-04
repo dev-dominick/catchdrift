@@ -55,18 +55,47 @@ export const RECOVERABLE_INCIDENT_STATUSES = [
   "investigating",
 ] as const;
 
+export const DEMO_SCENARIO = {
+  incidentTitle: "Tracking failure detected after deployment v42",
+  campaignName: DEMO_CAMPAIGN_NAME,
+  trafficSource: "Meta",
+  spendPerHourMinor: 90000,
+  potentialDailyExposureMinor: 384000,
+  exposureAtDetectionMinor: 64000,
+  attributionDeclinePercent: 25,
+  sessionDeclinePercent: 18,
+  conversionDeclinePercent: 82,
+  detectionDurationMinutes: 14,
+  recoveryWindowCount: 3,
+  deploymentIdentifier: "v42",
+  correctiveDeploymentIdentifier: "v43",
+  deploymentExternalId: "deploy-v42",
+  correctiveDeploymentExternalId: "deploy-v43",
+  rootCauseSummary: "Landing-page redirect removed click_id forwarding in deployment v42.",
+  recommendedAction:
+    "Verify click_id forwarding in landing-page redirects and confirm attribution payload integrity after deployment v42.",
+  finalRecoveryStatement:
+    "Revenue leak contained. CatchDrift verified recovery across three consecutive evaluation windows.",
+  stagedExposureMinor: {
+    healthy: 0,
+    degradation: 16000,
+    confirmation: 32000,
+    detected: 64000,
+  },
+} as const;
+
 export const DEMO_STORY = {
   spendPerHourMinor: 90000,
-  detectionMinutes: 14,
-  exposureDuringDetectionMinor: 64000,
+  detectionMinutes: DEMO_SCENARIO.detectionDurationMinutes,
+  exposureDuringDetectionMinor: DEMO_SCENARIO.exposureAtDetectionMinor,
   delayedDiscoveryExposureMinor: 384000,
-  potentialDailyExposureMinor: 384000,
+  potentialDailyExposureMinor: DEMO_SCENARIO.potentialDailyExposureMinor,
   campaignsMonitored: 1,
-  conversionDeclinePercent: 82,
-  attributionDeclinePercent: 25,
-  deploymentId: "v42",
-  correctiveDeploymentId: "v43",
+  conversionDeclinePercent: DEMO_SCENARIO.conversionDeclinePercent,
+  attributionDeclinePercent: DEMO_SCENARIO.attributionDeclinePercent,
+  deploymentId: DEMO_SCENARIO.deploymentIdentifier,
+  correctiveDeploymentId: DEMO_SCENARIO.correctiveDeploymentIdentifier,
   recoveryMinutes: 15,
-  incidentCause: "Landing-page redirect removed click_id forwarding in deployment v42.",
+  incidentCause: DEMO_SCENARIO.rootCauseSummary,
   incidentCauseShort: "Deployment v42 removed click_id forwarding.",
 } as const;

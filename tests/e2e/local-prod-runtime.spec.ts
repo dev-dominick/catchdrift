@@ -29,7 +29,7 @@ test.describe("local production runtime", () => {
     await expect(page.getByRole("heading", { name: "Operational Incident Inbox" })).toBeVisible();
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "Data health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Integration status" })).toBeVisible();
 
     expect(consoleErrors, `Console errors:\n${consoleErrors.join("\n")}`).toHaveLength(0);
     expect(requestFailures, `Request failures:\n${requestFailures.join("\n")}`).toHaveLength(0);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 
 type BuyerBriefResponse = {
   brief: {
@@ -16,31 +17,30 @@ type BuyerBriefResponse = {
 };
 
 export function BuyerBrief({ incidentId }: { incidentId: string }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BuyerBriefResponse | null>(null);
+  const { error, runningKey, run, setError } = useAsyncAction();
+  const loading = runningKey === "buyer-brief";
 
   async function loadBrief() {
-    setLoading(true);
-    setError(null);
-
-    try {
+    const body = await run(
+      "buyer-brief",
+      async () => {
       const response = await fetch(`/api/incidents/${incidentId}/buyer-brief`, {
         method: "GET",
       });
 
       if (!response.ok) {
         setError(`Failed to generate brief (${response.status}).`);
-        setLoading(false);
-        return;
+        return null;
       }
 
-      const body = (await response.json()) as BuyerBriefResponse;
+        return (await response.json()) as BuyerBriefResponse;
+      },
+      "Unable to generate brief right now. Try again.",
+    );
+
+    if (body) {
       setData(body);
-    } catch {
-      setError("Unable to generate brief right now. Try again.");
-    } finally {
-      setLoading(false);
     }
   }
 

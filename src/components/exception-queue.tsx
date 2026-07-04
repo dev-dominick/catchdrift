@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { exposureLabel, formatMoneyMinor } from "@/lib/format";
-import { differenceInMinutes } from "date-fns";
-import { DEMO_STORY } from "@/lib/constants";
+import { DEMO_SCENARIO } from "@/lib/constants";
 
 type ExceptionItem = {
   id: string;
@@ -81,33 +80,31 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
             ) : (
               <ul className="space-y-3">
                 {items.map((incident) => {
-                  const age = differenceInMinutes(new Date(), new Date(incident.detected_at));
                   const statusLabel = incident.status === "acknowledged" ? "investigating" : incident.status;
 
                   return (
                     <li key={incident.id} className="rounded-lg border border-slate-200 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`rounded px-2 py-1 text-xs font-semibold ${severityClass[incident.severity]}`}>
-                          {incident.severity}
+                          {incident.severity} severity
                         </span>
-                        <span className="text-xs uppercase tracking-wide text-slate-500">{statusLabel}</span>
+                        <span className="text-xs uppercase tracking-wide text-slate-500">{statusLabel} status</span>
                       </div>
 
-                      <p className="mt-2 text-sm font-semibold text-slate-900">{incident.campaign_name}</p>
-                      <p className="mt-1 text-sm text-slate-700">Incident type: {incident.rule_id}@1</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{DEMO_SCENARIO.incidentTitle}</p>
                       <p className="mt-1 text-sm text-slate-700">
-                        Estimated exposure during detection: {formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}
+                        {incident.campaign_name} · {DEMO_SCENARIO.trafficSource}
                       </p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {formatMoneyMinor(DEMO_SCENARIO.exposureAtDetectionMinor)} exposed before recovery
+                      </p>
+                      <p className="mt-1 text-sm text-slate-700">Likely cause: {DEMO_SCENARIO.rootCauseSummary}</p>
                       <p className="mt-1 text-sm text-slate-700">
                         Exposure rate: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
                       </p>
-                      <p className="mt-1 text-sm text-slate-700">Spend remained active during the detection window.</p>
-                      <p className="mt-1 text-sm text-slate-700">Age: {Math.max(0, age)} minutes</p>
-                      <p className="mt-1 text-sm text-slate-700">Correlated change: strongest deployment correlation shown in incident detail.</p>
-                      <p className="mt-1 text-sm text-slate-700">Next action: validate redirect tracking and attribution payloads.</p>
 
                       <Link href={`/incidents/${incident.id}`} className="mt-2 inline-block text-sm font-medium text-slate-800 underline">
-                        Open incident
+                        View evidence
                       </Link>
                     </li>
                   );

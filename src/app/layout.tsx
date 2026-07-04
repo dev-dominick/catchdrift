@@ -39,7 +39,7 @@ export default function RootLayout({
                 Incidents
               </Link>
               <Link href="/sources" className="hover:text-slate-900">
-                Data health
+                Integration status
               </Link>
             </nav>
           </div>
