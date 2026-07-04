@@ -14,7 +14,11 @@ import {
   YAxis,
 } from "recharts";
 import { DEMO_SCENARIO } from "@/lib/constants";
-import { RUN_DEMO_REPLAY_EVENT } from "@/lib/demo-replay-events";
+import {
+  REPLAY_DEMO_STATE_EVENT,
+  type ReplayDemoStateEventDetail,
+  RUN_DEMO_REPLAY_EVENT,
+} from "@/lib/demo-replay-events";
 import { formatMoneyRangeMinor } from "@/lib/format";
 import {
   CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES,
@@ -82,6 +86,10 @@ const EXPOSURE_BEFORE_DETECTION = exposureRangeForMinutes({
   highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
   minutes: DETECTION_DURATION_MINUTES,
 });
+const EXPOSURE_BEFORE_DETECTION_LABEL = formatMoneyRangeMinor(
+  EXPOSURE_BEFORE_DETECTION.lowMinor,
+  EXPOSURE_BEFORE_DETECTION.highMinor,
+);
 
 const TIMELINE_SERIES = [
   { t: "12:00", spend: 900, clicks: 1010, sessions: 984, conversions: 91 },
@@ -103,6 +111,62 @@ const TIMELINE_MARKERS = [
   { at: "12:35", label: PRESENTATION_COPY.timelineLabels.fixApplied },
   { at: "12:50", label: PRESENTATION_COPY.timelineLabels.recoveryVerified },
 ];
+
+const EVIDENCE_EVENTS = [
+  {
+    step: 1,
+    time: "12:15",
+    title: `Deployment ${DEMO_SCENARIO.deploymentIdentifier} observed`,
+    detail: "Redirect behavior changed while spend and clicks stayed active.",
+  },
+  {
+    step: 2,
+    time: "12:30",
+    title: "Metric decline persisted",
+    detail: `Sessions and attributed conversions stayed degraded for ${DETECTION_DURATION_MINUTES} minutes.`,
+  },
+  {
+    step: 2,
+    time: "12:30",
+    title: "Incident and exposure created",
+    detail: `${EXPOSURE_BEFORE_DETECTION_LABEL} exposure calculated before automated detection.`,
+  },
+  {
+    step: 3,
+    time: "12:31",
+    title: "Buyer brief assembled",
+    detail: "Persisted evidence becomes an investigation path, not an automated campaign action.",
+  },
+  {
+    step: 4,
+    time: "12:50",
+    title: "Recovery verified",
+    detail: `${DEMO_SCENARIO.recoveryWindowCount} consecutive recovery windows returned to expected range.`,
+  },
+] as const;
+
+type EvidenceStatus = "pending" | "active" | "complete";
+
+function evidenceStatusForStep(params: {
+  eventStep: number;
+  activeStageIndex: number;
+  replayStarted: boolean;
+  completed: boolean;
+}): EvidenceStatus {
+  if (!params.replayStarted) {
+    return "pending";
+  }
+
+  if (params.completed || params.activeStageIndex > params.eventStep) {
+    return "complete";
+  }
+
+  if (params.activeStageIndex === params.eventStep) {
+    return "active";
+  }
+
+  return "pending";
+}
 
 function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {
   const allLines = run.lines.join("\n");
@@ -150,13 +214,32 @@ export function SimulationControls() {
   const bufferedRunRef = useRef<ReplayRunStatus | null>(null);
   const stageFocusRef = useRef<HTMLDivElement | null>(null);
 
-  const running = useMemo(() => state === "running", [state]);
+  const activeReplay = useMemo(() => state === "running" || state === "incident", [state]);
+  const replayStarted = activeReplay || state === "completed" || lines.length > 0;
   const activeStageIndex = STAGE_INDEX_BY_KEY[stageKey] + 1;
   const progressWidthClass = ["w-1/4", "w-1/2", "w-3/4", "w-full"][activeStageIndex - 1] ?? "w-1/4";
+  const evidenceTimeline = EVIDENCE_EVENTS.map((event) => ({
+    ...event,
+    status: evidenceStatusForStep({
+      eventStep: event.step,
+      activeStageIndex,
+      replayStarted,
+      completed: state === "completed",
+    }),
+  }));
+  const eventLog = evidenceTimeline.filter((event) => event.status !== "pending");
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent<ReplayDemoStateEventDetail>(REPLAY_DEMO_STATE_EVENT, {
+        detail: { active: activeReplay },
+      }),
+    );
+  }, [activeReplay]);
 
   useEffect(() => {
     stageFocusRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -199,7 +282,7 @@ export function SimulationControls() {
   }
 
   async function runSimulation() {
-    if (running) {
+    if (activeReplay) {
       return;
     }
 
@@ -299,7 +382,7 @@ export function SimulationControls() {
       <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
         <MetricCard
           label={PRESENTATION_COPY.exposureLabels.beforeDetection}
-          value={formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}
+          value={EXPOSURE_BEFORE_DETECTION_LABEL}
           primary
         />
         <MetricCard label="Detection duration" value={`${DETECTION_DURATION_MINUTES} min`} />
@@ -310,7 +393,7 @@ export function SimulationControls() {
         {state === "idle" || state === "error" ? (
           <button
             type="button"
-            disabled={running}
+            disabled={activeReplay}
             onClick={runSimulation}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
@@ -318,7 +401,7 @@ export function SimulationControls() {
           </button>
         ) : null}
 
-        {(state === "running" || state === "incident") && (
+        {activeReplay && (
           <button
             type="button"
             onClick={togglePause}
@@ -328,7 +411,7 @@ export function SimulationControls() {
           </button>
         )}
 
-        {(state === "running" || state === "incident" || state === "completed" || state === "error") && (
+        {(state === "completed" || state === "error") && (
           <button
             type="button"
             onClick={runSimulation}
@@ -345,15 +428,57 @@ export function SimulationControls() {
         ) : null}
       </div>
 
-      <div ref={stageFocusRef} className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Guided simulation</p>
-        <h3 className="mt-1 text-lg font-semibold text-slate-900">{stage.title}</h3>
-        <p className="mt-2 text-sm text-slate-700">{statusMessage}</p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <div ref={stageFocusRef} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Guided simulation</p>
+          <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+            Step {activeStageIndex} of {STORY_STAGES.length} — {stage.title}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{statusMessage}</p>
 
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-          <div className={`h-full rounded-full bg-slate-900 transition-all duration-500 ${progressWidthClass}`} />
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+            <div className={`h-full rounded-full bg-slate-900 transition-all duration-500 ${progressWidthClass}`} />
+          </div>
         </div>
+
+        <aside className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">What just happened</p>
+          {eventLog.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">Replay events will appear here as evidence arrives.</p>
+          ) : (
+            <ol className="mt-3 space-y-2">
+              {eventLog.map((event) => (
+                <li key={`${event.time}-${event.title}`} className="grid grid-cols-[3.25rem_1fr] gap-2 text-sm">
+                  <span className="font-mono text-xs text-slate-500">{event.time}</span>
+                  <span className="text-slate-800">{event.title}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </aside>
       </div>
+
+      <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Evidence arrival</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {evidenceTimeline.map((event) => (
+            <article
+              key={`${event.time}-${event.title}`}
+              className={`rounded-lg border p-3 transition-all duration-500 ${
+                event.status === "complete"
+                  ? "translate-y-0 border-emerald-300 bg-emerald-50 text-emerald-950"
+                  : event.status === "active"
+                    ? "translate-y-0 border-cyan-300 bg-cyan-50 text-slate-950 shadow-sm"
+                    : "translate-y-1 border-slate-200 bg-slate-50 text-slate-400 opacity-70"
+              }`}
+            >
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-wide">{event.time}</p>
+              <h4 className="mt-1 text-sm font-semibold">{event.title}</h4>
+              <p className="mt-1 text-xs leading-5">{event.detail}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-4" aria-label="Simulation stages">
         {STORY_STAGES.map((item, index) => {
@@ -385,7 +510,7 @@ export function SimulationControls() {
             Spend remains active while attributed sessions are down by {DEMO_SCENARIO.attributionDeclinePercent}%.
           </p>
           <p className="mt-2 text-base font-semibold text-rose-900">
-            {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)} exposure before detection
+            {EXPOSURE_BEFORE_DETECTION_LABEL} exposure before detection
           </p>
         </section>
       ) : null}
@@ -429,7 +554,7 @@ export function SimulationControls() {
           <p className="mt-2 text-sm text-rose-900">
             CatchDrift detected a likely attribution failure affecting the Meta Prospecting campaign.
             Spend and clicks remained normal, but attributed sessions dropped {DEMO_SCENARIO.conversionDeclinePercent}% following
-            deployment {DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed before detection: {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}.
+            deployment {DEMO_SCENARIO.deploymentIdentifier}. Estimated spend currently exposed before detection: {EXPOSURE_BEFORE_DETECTION_LABEL}.
             Recommended action: {DEMO_SCENARIO.recommendedAction}
           </p>
 
@@ -462,14 +587,14 @@ export function SimulationControls() {
             and verified recovery across {DEMO_SCENARIO.recoveryWindowCount} consecutive windows.
           </p>
           <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-            <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {formatMoneyRangeMinor(EXPOSURE_BEFORE_DETECTION.lowMinor, EXPOSURE_BEFORE_DETECTION.highMinor)}</li>
+            <li>{PRESENTATION_COPY.exposureLabels.beforeDetection}: {EXPOSURE_BEFORE_DETECTION_LABEL}</li>
             <li>Detection duration: {DETECTION_DURATION_MINUTES} minutes</li>
             <li>Recovery windows verified: {DEMO_SCENARIO.recoveryWindowCount}</li>
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
             {incidentUrl ? (
               <Link href={incidentUrl} className="rounded-md bg-emerald-900 px-3 py-2 text-sm font-semibold text-white">
-                View incident evidence
+                View completed incident
               </Link>
             ) : null}
             <button

@@ -445,6 +445,9 @@ test("homepage has one primary simulation CTA and no campaigns monitored metric"
 
   const ctas = page.getByRole("button", { name: REPLAY_CTA });
   await expect(ctas).toHaveCount(1);
+  await expect(page.getByText("Step 1 of 4")).toBeVisible();
+  await expect(page.getByText("Evidence arrival")).toBeVisible();
+  await expect(page.getByText("What just happened")).toBeVisible();
   await expect(page.getByText("Campaigns monitored")).toHaveCount(0);
 });
 
