@@ -2,6 +2,7 @@ import { SimulationControls } from "@/components/simulation-controls";
 import { DEMO_SCENARIO } from "@/lib/constants";
 import { formatMoneyMinor, formatMoneyRangeMinor } from "@/lib/format";
 import {
+  CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES,
   CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES,
   DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
   exposureRangeForMinutes,
@@ -24,9 +25,23 @@ export default async function HomePage() {
     highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
     minutes: 24 * 60,
   });
+  const manualDiscoveryExposure = exposureRangeForMinutes({
+    lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+    highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+    minutes: CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES,
+  });
+  const additionalExposureSurfaced = exposureRangeForMinutes({
+    lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+    highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+    minutes: CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES - detectionDurationMinutes,
+  });
   const activeSpendLabel = `${formatMoneyMinor(DEMO_SCENARIO.spendPerHourMinor)}/hour`;
 
-  const detectionCopy = `Deployment ${DEMO_SCENARIO.deploymentIdentifier} removes click_id forwarding while spend continues at ${activeSpendLabel}. CatchDrift creates an incident after ${detectionDurationMinutes} minutes of confirmed degradation, with ${formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)} in exposure before detection.`;
+  const detectionCopy = [
+    `Deployment ${DEMO_SCENARIO.deploymentIdentifier} removes click_id forwarding while spend continues at ${activeSpendLabel}.`,
+    `CatchDrift creates an incident after ${detectionDurationMinutes} minutes of confirmed degradation, with ${formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)} accumulated before automated detection.`,
+    `A ${CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES}-minute manual-discovery delay would put ${formatMoneyRangeMinor(manualDiscoveryExposure.lowMinor, manualDiscoveryExposure.highMinor)} at risk, so the replay surfaces ${formatMoneyRangeMinor(additionalExposureSurfaced.lowMinor, additionalExposureSurfaced.highMinor)} of additional estimated exposure before that delayed review.`,
+  ].join(" ");
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -71,7 +86,7 @@ export default async function HomePage() {
             <p className="mt-1 text-2xl font-semibold text-rose-950">
               {formatMoneyRangeMinor(beforeDetection.lowMinor, beforeDetection.highMinor)}
             </p>
-            <p className="mt-1 text-sm text-rose-900">Exposure before detection in the replay scenario.</p>
+            <p className="mt-1 text-sm text-rose-900">Accumulated before automated detection in the replay scenario.</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">

@@ -57,6 +57,7 @@ describe("presentation contract parity", () => {
     expect(model.detectionDurationMinutes).toBe(15);
     expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5738, highMinor: 7742 });
     expect(model.ninetyMinuteMinor).toEqual({ lowMinor: 34430, highMinor: 46451 });
+    expect(model.manualDelayAvoidedMinor).toEqual({ lowMinor: 28691, highMinor: 38709 });
     expect(model.dailyMinor).toEqual({ lowMinor: 550872, highMinor: 743208 });
   });
 
@@ -97,12 +98,13 @@ describe("presentation contract parity", () => {
     const submission = read("SUBMISSION_COPY.md");
 
     expect(readme).toContain(`Click \`${PRESENTATION_COPY.replayCta}\`.`);
-    expect(readme).toContain("Exposure before detection (rate x 15 minutes): $57-$77");
-    expect(readme).toContain("Hypothetical exposure with 90-minute delay (rate x 90 minutes): $344-$465");
+    expect(readme).toContain("Exposure accumulated before automated detection (rate x 15 minutes): $57-$77");
+    expect(readme).toContain("90-minute manual discovery counterfactual (rate x 90 minutes): $344-$465");
+    expect(readme).toContain("Additional exposure surfaced before delayed manual discovery (rate x 75 minutes): $287-$387");
     expect(readme).toContain("Potential full-day exposure projection (rate x 24 hours): $5,509-$7,432");
 
     expect(submission).toContain(`Click "${PRESENTATION_COPY.replayCta}".`);
-    expect(submission).toContain("Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential full-day exposure projection");
+    expect(submission).toContain("Estimated exposure rate, exposure before detection, 90-minute manual-discovery counterfactual, additional exposure surfaced before that delay, and potential full-day exposure projection");
   });
 
   it("uses centralized replay CTA and exposure derivations across core presentation surfaces", () => {

@@ -16,7 +16,7 @@ CatchDrift protects active ad spend from silent tracking failures. In this repla
 
 CatchDrift is an AI-assisted campaign protection system for lean media-buying teams. The business problem is simple: campaigns can keep spending while tracking breaks, and delayed reporting makes it hard to connect money at risk to the operational change that caused the symptoms.
 
-In this replay, spend stays at $900/hour after deployment v42 removes click_id forwarding. Attribution falls while spend remains active, CatchDrift waits for three degraded five-minute windows, then opens a deterministic incident with immutable evidence and roughly $230-$310/hour in estimated exposure. The incident shows exposure before detection, hypothetical 90-minute exposure, and potential full-day projection from one canonical rate. AI then summarizes the persisted evidence into an investigation brief, but AI never creates incidents, changes exposure, claims causation, verifies recovery, or controls spend. Recovery is deterministic: metrics must return to expected ranges before incident status changes to recovered.
+In this replay, spend stays at $900/hour after deployment v42 removes click_id forwarding. Attribution falls while spend remains active, CatchDrift waits for three degraded five-minute windows, then opens a deterministic incident with immutable evidence and roughly $230-$310/hour in estimated exposure. The incident separates exposure accumulated before automated detection ($57-$77), a 90-minute manual-discovery counterfactual ($344-$465), additional estimated exposure surfaced before that delayed review ($287-$387), and potential full-day projection ($5,509-$7,432) from one canonical rate. AI then summarizes the persisted evidence into an investigation brief, but AI never creates incidents, changes exposure, claims causation, verifies recovery, or controls spend. Recovery is deterministic: metrics must return to expected ranges before incident status changes to recovered.
 
 ## 5) Five-minute demo script
 
@@ -31,7 +31,7 @@ In this replay, spend stays at $900/hour after deployment v42 removes click_id f
 5. Generate the AI investigation brief.
    - Emphasize: AI summarizes persisted evidence; it never creates incidents, changes exposure, verifies recovery, claims causation, or controls campaign spend.
 6. Show financial impact framing.
-   - Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential full-day exposure projection (all formula-derived from the same canonical rate).
+   - Estimated exposure rate, exposure before detection, 90-minute manual-discovery counterfactual, additional exposure surfaced before that delay, and potential full-day exposure projection (all formula-derived from the same canonical rate).
 7. Show comparison table and trigger explanation.
    - Baseline vs degraded metrics and exact rule thresholds/persistence gates.
 8. Show deployment correlation section.

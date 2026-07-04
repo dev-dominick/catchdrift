@@ -230,13 +230,9 @@ test.describe("public production parity", () => {
     await expect(page.getByText("Detection duration", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Attribution drop", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("1. Campaign healthy")).toBeVisible();
-    await expect(page.getByText("2. Tracking signal begins degrading")).toBeVisible();
-    await expect(page.getByText("3. CatchDrift waits for confirmation")).toBeVisible();
-    await expect(page.getByText("4. Incident confirmed")).toBeVisible();
-    await expect(page.getByText("5. Recent deployment identified")).toBeVisible();
-    await expect(page.getByText("6. Exposure at risk")).toBeVisible();
-    await expect(page.getByText("7. Tracking restored")).toBeVisible();
-    await expect(page.getByText("8. Recovery verified")).toBeVisible();
+    await expect(page.getByText("2. Tracking failure detected")).toBeVisible();
+    await expect(page.getByText("3. Relevant change identified")).toBeVisible();
+    await expect(page.getByText("4. Recovery verified")).toBeVisible();
 
     const completedRun = await startAndCompleteSimulation(page);
 
@@ -267,9 +263,10 @@ test.describe("public production parity", () => {
 
     await expect(page).toHaveURL(/\/incidents\//);
     await waitForIncidentDetailReady(page);
-    await expect(page.getByRole("heading", { name: /Executive incident brief|AI investigation brief/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Executive incident brief" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI investigation brief" })).toBeVisible();
     await expect(page.getByText("$57-$77", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("$5,509-$7,432", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Potential full-day exposure: \$5,509-\$7,432/)).toBeVisible();
     await expect(page.getByText(/Recovered|Resolved/).first()).toBeVisible();
 
     await page.getByText("View technical evidence").click();
@@ -288,9 +285,9 @@ test.describe("public production parity", () => {
     await expect(page.getByText("Measured window: deployment to recovery (35 min)")).toBeVisible();
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Demo environment")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Demo environment and connectors" })).toBeVisible();
     await expect(page.getByText("Data mode: deterministic replay.")).toBeVisible();
-    await expect(page.getByText("Production connectors")).toBeVisible();
+    await expect(page.getByText("Production connectors", { exact: true })).toBeVisible();
     await expect(page.getByText("Ad-platform, analytics, deployment, and affiliate-provider feeds are intentionally not attached to this public demo.")).toBeVisible();
     await page.getByText("View technical source details").click();
     await expect(page.getByText("Replay evidence", { exact: false }).first()).toBeVisible();

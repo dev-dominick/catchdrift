@@ -16,8 +16,9 @@ export const PRESENTATION_COPY = {
   },
   exposureLabels: {
     beforeDetection: "Exposure before detection",
-    hourlyRate: "Estimated hourly exposure",
-    hypotheticalNinetyMinute: "Hypothetical exposure with a 90-minute reporting delay",
+    hourlyRate: "Estimated exposure rate",
+    manualDiscoveryCounterfactual: "90-minute manual discovery exposure",
+    manualDelayAvoided: "Additional exposure surfaced before manual discovery",
     potentialDaily: "Potential full-day exposure",
   },
   sourceStatusLabels: {
@@ -40,6 +41,8 @@ export const CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES = {
   fix: 80,
   recovery: 95,
 } as const;
+
+export const CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES = 90;
 
 export type TimelineEventTimestamps = {
   deploymentAt: string;
@@ -103,9 +106,11 @@ export function deriveExposureModel(params: {
   detectionDurationMinutes: number;
   beforeDetectionMinor: { lowMinor: number; highMinor: number };
   ninetyMinuteMinor: { lowMinor: number; highMinor: number };
+  manualDelayAvoidedMinor: { lowMinor: number; highMinor: number };
   dailyMinor: { lowMinor: number; highMinor: number };
 } {
   const detectionDurationMinutes = elapsedWholeMinutes(params.deployedAt, params.detectedAt);
+  const manualDelayAvoidedMinutes = Math.max(0, CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES - detectionDurationMinutes);
 
   return {
     detectionDurationMinutes,
@@ -117,7 +122,12 @@ export function deriveExposureModel(params: {
     ninetyMinuteMinor: exposureRangeForMinutes({
       lowPerHourMinor: params.lowPerHourMinor,
       highPerHourMinor: params.highPerHourMinor,
-      minutes: 90,
+      minutes: CANONICAL_MANUAL_DISCOVERY_DELAY_MINUTES,
+    }),
+    manualDelayAvoidedMinor: exposureRangeForMinutes({
+      lowPerHourMinor: params.lowPerHourMinor,
+      highPerHourMinor: params.highPerHourMinor,
+      minutes: manualDelayAvoidedMinutes,
     }),
     dailyMinor: exposureRangeForMinutes({
       lowPerHourMinor: params.lowPerHourMinor,

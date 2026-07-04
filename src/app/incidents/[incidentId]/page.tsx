@@ -109,6 +109,14 @@ export default async function IncidentDetailPage({ params }: { params: Promise<P
           exposureModel.beforeDetectionMinor.highMinor,
           String(incident.currency),
         );
+  const manualDelayAvoidedExposureLabel =
+    exposureModel == null
+      ? "n/a"
+      : formatMoneyRangeMinor(
+          exposureModel.manualDelayAvoidedMinor.lowMinor,
+          exposureModel.manualDelayAvoidedMinor.highMinor,
+          String(incident.currency),
+        );
   const recoveredCount = recoveryIntervalsCount(rows, baseline);
 
   const latestCorrectiveDeployment = (deployments as Array<Record<string, unknown>>).find(
@@ -255,6 +263,10 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
           <h2 className="text-lg font-semibold text-slate-900">Estimated exposure</h2>
           <ul className="mt-3 space-y-2 text-sm text-slate-700">
             <li>
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.beforeDetection}:</span>{" "}
+              {beforeDetectionExposureLabel}
+            </li>
+            <li>
               <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.hourlyRate}:</span>{" "}
               {exposureLabel(
                 incident.exposure_low_minor == null ? null : Number(incident.exposure_low_minor),
@@ -263,7 +275,7 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
               )}
             </li>
             <li>
-              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.hypotheticalNinetyMinute}:</span>{" "}
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.manualDiscoveryCounterfactual}:</span>{" "}
               {exposureModel == null
                 ? "n/a"
                 : formatMoneyRangeMinor(
@@ -271,6 +283,10 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
                     exposureModel.ninetyMinuteMinor.highMinor,
                     String(incident.currency),
                   )}
+            </li>
+            <li>
+              <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.manualDelayAvoided}:</span>{" "}
+              {manualDelayAvoidedExposureLabel}
             </li>
             <li>
               <span className="font-medium text-slate-900">{PRESENTATION_COPY.exposureLabels.potentialDaily}:</span>{" "}
@@ -284,7 +300,8 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
             </li>
           </ul>
           <p className="mt-3 text-xs text-slate-600">
-            Delayed-discovery and full-day values are hypothetical projections, not confirmed loss.
+            Manual-delay and full-day values are counterfactual projections. The additional surfaced amount is the
+            manual-delay counterfactual minus the automated detection window, not confirmed savings.
           </p>
         </section>
 
