@@ -31,8 +31,8 @@ export const DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR = {
 export const CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES = {
   deployment: 60,
   detection: 75,
-  fix: 75,
-  recovery: 90,
+  fix: 80,
+  recovery: 95,
 } as const;
 
 export type TimelineEventTimestamps = {
@@ -65,8 +65,8 @@ export function validateTimelineOrdering(events: TimelineEventTimestamps): Timel
     return { valid: false, reason: "deployment must occur before detection" };
   }
 
-  if (!(detectedAt <= fixedAt)) {
-    return { valid: false, reason: "detection must occur at or before fix" };
+  if (!(detectedAt < fixedAt)) {
+    return { valid: false, reason: "detection must occur before fix" };
   }
 
   if (!(fixedAt < recoveredAt)) {

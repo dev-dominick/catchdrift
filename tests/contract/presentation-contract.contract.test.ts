@@ -43,7 +43,7 @@ describe("presentation contract parity", () => {
 
     expect(valid.valid).toBe(true);
     expect(invalid.valid).toBe(false);
-    expect(String(invalid.reason)).toContain("detection must occur at or before fix");
+    expect(String(invalid.reason)).toContain("detection must occur before fix");
   });
 
   it("derives exposure categories from one canonical hourly rate", () => {

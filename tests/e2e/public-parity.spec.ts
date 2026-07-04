@@ -282,8 +282,8 @@ test.describe("public production parity", () => {
     await expect(page.getByRole("button", { name: "Start investigation" })).toHaveCount(0);
 
     await page.goto("/incidents", { waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Exposure through recovery: $115-$155")).toBeVisible();
-    await expect(page.getByText("Measured window: deployment to recovery (30 min)")).toBeVisible();
+    await expect(page.getByText("Exposure through recovery: $134-$181")).toBeVisible();
+    await expect(page.getByText("Measured window: deployment to recovery (35 min)")).toBeVisible();
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Simulation environment")).toBeVisible();

@@ -312,10 +312,10 @@ test("replay reaches active incident then recovered within bounded runtime", asy
   expect(Number.isNaN(fixedAt)).toBe(false);
   expect(Number.isNaN(recoveredAtEvent)).toBe(false);
   expect(deployedAt < detectedAt).toBe(true);
-  expect(detectedAt <= fixedAt).toBe(true);
+  expect(detectedAt < fixedAt).toBe(true);
   expect(fixedAt < recoveredAtEvent).toBe(true);
   expect(Math.round((detectedAt - deployedAt) / 60_000)).toBe(15);
-  expect(Math.round((recoveredAtEvent - detectedAt) / 60_000)).toBe(15);
+  expect(Math.round((recoveredAtEvent - detectedAt) / 60_000)).toBe(20);
 
   expect(activeReachedAt - startedAt).toBeLessThan(30_000);
   expect(recoveredAt - startedAt).toBeLessThan(45_000);

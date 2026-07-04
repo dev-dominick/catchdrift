@@ -136,13 +136,14 @@ const TIMELINE_SERIES = [
   { t: "12:35", spend: 900, clicks: 1006, sessions: 896, conversions: 71 },
   { t: "12:40", spend: 900, clicks: 1001, sessions: 953, conversions: 86 },
   { t: "12:45", spend: 900, clicks: 1003, sessions: 972, conversions: 90 },
+  { t: "12:50", spend: 900, clicks: 1002, sessions: 975, conversions: 91 },
 ];
 
 const TIMELINE_MARKERS = [
   { at: "12:15", label: PRESENTATION_COPY.timelineLabels.deployment },
   { at: "12:30", label: PRESENTATION_COPY.timelineLabels.incidentDetected },
-  { at: "12:30", label: PRESENTATION_COPY.timelineLabels.fixApplied },
-  { at: "12:45", label: PRESENTATION_COPY.timelineLabels.recoveryVerified },
+  { at: "12:35", label: PRESENTATION_COPY.timelineLabels.fixApplied },
+  { at: "12:50", label: PRESENTATION_COPY.timelineLabels.recoveryVerified },
 ];
 
 function deriveStoryStage(run: ReplayRunStatus): StoryStageKey {

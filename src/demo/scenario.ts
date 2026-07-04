@@ -277,7 +277,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
     externalCampaignId: DEMO_EXTERNAL_CAMPAIGN_ID,
     externalDeploymentId: "deploy-v43",
     version: "v43",
-    deployedAt: addMinutes(start, 75).toISOString(),
+    deployedAt: addMinutes(start, 80).toISOString(),
     changes: [
       {
         path: "redirectUrl",
@@ -291,7 +291,7 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   await timelinePause(options?.instant, 1800);
 
   for (let i = 0; i < 3; i += 1) {
-    await ingestInterval(16 + i, addMinutes(start, 75 + i * 5), RECOVERY);
+    await ingestInterval(16 + i, addMinutes(start, 80 + i * 5), RECOVERY);
   }
   await drainReplayQueue(workspaceId);
 
