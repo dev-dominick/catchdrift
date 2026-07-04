@@ -27,9 +27,9 @@ Example from deterministic replay profile:
 - Estimated exposure rate: $230-$310/hour
 - Detection window: 3 degraded intervals, approximately 15 minutes from deployment to detection
 - Expected manual discovery delay: 90 minutes
-- Exposure before detection (rate x 15 minutes): $58-$78
-- Hypothetical exposure with 90-minute delay (rate x 90 minutes): $345-$465
-- Potential full-day exposure projection (rate x 24 hours): $5,520-$7,440
+- Exposure before detection (rate x 15 minutes): $57-$77
+- Hypothetical exposure with 90-minute delay (rate x 90 minutes): $344-$465
+- Potential full-day exposure projection (rate x 24 hours): $5,509-$7,432
 
 Demo estimates are based on the controlled replay scenario. They are estimated exposure signals, not confirmed money saved.
 

@@ -24,8 +24,8 @@ export const PRESENTATION_COPY = {
 } as const;
 
 export const DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR = {
-  low: 23000,
-  high: 31000,
+  low: 22953,
+  high: 30967,
 } as const;
 
 export const CANONICAL_REPLAY_TIMELINE_OFFSETS_MINUTES = {

@@ -441,7 +441,7 @@ test("canonical business values stay consistent across homepage, inbox, and inci
   await expect(page.getByText("Potential full-day exposure", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
   await expect(page.getByText("Exposure before detection", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("$58-$78", { exact: true })).toBeVisible();
+  await expect(page.getByText("$57-$77", { exact: true })).toBeVisible();
   await expect(page.getByText("Detection duration")).toBeVisible();
   await expect(page.getByText("15 min", { exact: true })).toBeVisible();
   await expect(page.getByText("Attribution drop", { exact: true }).first()).toBeVisible();
@@ -453,7 +453,7 @@ test("canonical business values stay consistent across homepage, inbox, and inci
   expect(runState.status).not.toBe("failed");
 
   await page.goto("/incidents");
-  await expect(page.getByText("Exposure before detection: $58-$78")).toBeVisible();
+  await expect(page.getByText("Exposure before detection: $57-$77")).toBeVisible();
   await expect(page.getByText("Measured window: deployment to detection (15 min)")).toBeVisible();
 
   await page.getByRole("link", { name: "View evidence" }).first().click();
@@ -473,7 +473,7 @@ test("simulation stages drive exposure progression and incident/recovery banners
   await expect(page.getByText("Exposure progression: $0")).toBeVisible();
   await page.getByRole("button", { name: "Run incident simulation" }).click();
 
-  await expect(page.getByText("Exposure progression: $58-$78")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText("Exposure progression: $57-$77")).toBeVisible({ timeout: 90_000 });
 });
 
 test("incident inbox link remains resolvable across refresh, new tab, and replay restart", async ({ page, browser }) => {

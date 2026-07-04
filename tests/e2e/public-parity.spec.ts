@@ -266,7 +266,7 @@ test.describe("public production parity", () => {
     await expect(page).toHaveURL(/\/incidents\//);
     await waitForIncidentDetailReady(page);
     await expect(page.getByRole("heading", { name: /Executive incident brief|Buyer brief/i })).toBeVisible();
-    await expect(page.getByText("$58-$78", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("$57-$77", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("$5,520-$7,440", { exact: true })).toBeVisible();
     await expect(page.getByText(/Recovered|Resolved/).first()).toBeVisible();
 

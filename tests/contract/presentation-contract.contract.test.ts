@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { getDeterministicDemoExposureEstimate } from "@/domain/demo-financial";
 import {
   DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
   deriveExposureModel,
@@ -16,6 +17,15 @@ function read(relativePath: string): string {
 }
 
 describe("presentation contract parity", () => {
+  it("keeps the canonical exposure rate aligned with the deterministic product calculation", () => {
+    const exposure = getDeterministicDemoExposureEstimate();
+
+    expect(DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR).toEqual({
+      low: Math.round(exposure.low * 100),
+      high: Math.round(exposure.high * 100),
+    });
+  });
+
   it("enforces canonical timeline ordering invariant", () => {
     const valid = validateTimelineOrdering({
       deploymentAt: "2026-07-04T12:15:00.000Z",
@@ -45,9 +55,9 @@ describe("presentation contract parity", () => {
     });
 
     expect(model.detectionDurationMinutes).toBe(15);
-    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5750, highMinor: 7750 });
-    expect(model.ninetyMinuteMinor).toEqual({ lowMinor: 34500, highMinor: 46500 });
-    expect(model.dailyMinor).toEqual({ lowMinor: 552000, highMinor: 744000 });
+    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5738, highMinor: 7742 });
+    expect(model.ninetyMinuteMinor).toEqual({ lowMinor: 34430, highMinor: 46451 });
+    expect(model.dailyMinor).toEqual({ lowMinor: 550872, highMinor: 743208 });
   });
 
   it("labels lifecycle exposure windows from incident timestamps", () => {
@@ -70,13 +80,13 @@ describe("presentation contract parity", () => {
 
     expect(active).toMatchObject({
       label: PRESENTATION_COPY.exposureLabels.beforeDetection,
-      rangeMinor: { lowMinor: 5750, highMinor: 7750 },
+      rangeMinor: { lowMinor: 5738, highMinor: 7742 },
       durationMinutes: 15,
       windowLabel: "deployment to detection",
     });
     expect(recovered).toMatchObject({
       label: "Exposure through recovery",
-      rangeMinor: { lowMinor: 11500, highMinor: 15500 },
+      rangeMinor: { lowMinor: 11477, highMinor: 15484 },
       durationMinutes: 30,
       windowLabel: "deployment to recovery",
     });
@@ -87,9 +97,9 @@ describe("presentation contract parity", () => {
     const submission = read("SUBMISSION_COPY.md");
 
     expect(readme).toContain(`Click \`${PRESENTATION_COPY.replayCta}\`.`);
-    expect(readme).toContain("Exposure before detection (rate x 15 minutes): $58-$78");
-    expect(readme).toContain("Hypothetical exposure with 90-minute delay (rate x 90 minutes): $345-$465");
-    expect(readme).toContain("Potential full-day exposure projection (rate x 24 hours): $5,520-$7,440");
+    expect(readme).toContain("Exposure before detection (rate x 15 minutes): $57-$77");
+    expect(readme).toContain("Hypothetical exposure with 90-minute delay (rate x 90 minutes): $344-$465");
+    expect(readme).toContain("Potential full-day exposure projection (rate x 24 hours): $5,509-$7,432");
 
     expect(submission).toContain(`Click "${PRESENTATION_COPY.replayCta}".`);
     expect(submission).toContain("Estimated hourly exposure, exposure before detection, hypothetical 90-minute exposure, and potential full-day exposure projection");

@@ -21,7 +21,7 @@ describe("demo scenario canonical values", () => {
       detectedAt: "2026-07-04T12:30:00.000Z",
     });
 
-    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5750, highMinor: 7750 });
-    expect(model.dailyMinor).toEqual({ lowMinor: 552000, highMinor: 744000 });
+    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 5738, highMinor: 7742 });
+    expect(model.dailyMinor).toEqual({ lowMinor: 550872, highMinor: 743208 });
   });
 });
