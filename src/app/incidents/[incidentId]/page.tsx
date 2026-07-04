@@ -474,6 +474,13 @@ After:  ${deploymentCandidate?.changes_json?.[0]?.nextValue ?? "/apply"}`}
               <div className="mt-4">
                 <EvidenceTimeline rows={timeline as never[]} markers={timelineMarkers} />
               </div>
+              <ul className="mt-3 flex flex-wrap gap-2 text-xs text-slate-700">
+                {timelineMarkers.map((marker) => (
+                  <li key={`${marker.label}-${marker.timestamp}`} className="rounded-full border border-slate-300 bg-slate-50 px-2 py-1">
+                    {marker.label}: {new Date(marker.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </li>
+                ))}
+              </ul>
             </section>
 
             <section className="mt-6">
