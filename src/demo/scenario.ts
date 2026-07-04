@@ -8,8 +8,9 @@ import {
   resetDemoWorkspace,
 } from "@/domain/engine";
 import { query, queryOne } from "@/db/sql";
-import { DEMO_EXTERNAL_CAMPAIGN_ID, DEMO_STORY } from "@/lib/constants";
-import { formatMoneyMinor } from "@/lib/format";
+import { DEMO_EXTERNAL_CAMPAIGN_ID } from "@/lib/constants";
+import { formatMoneyRangeMinor } from "@/lib/format";
+import { DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR, deriveExposureModel } from "@/lib/presentation-contract";
 
 const DEMO_REPLAY_INLINE_WORKER_ID = "demo-replay-inline";
 const DEMO_REPLAY_JOB_BATCH_SIZE = 500;
@@ -249,9 +250,20 @@ export async function runDemoReplay(options?: { instant?: boolean; onStage?: (li
   }
 
   latestIncidentId = incidentAfterThirdInterval.id;
+  const exposureModel = deriveExposureModel({
+    lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+    highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+    deployedAt: deploymentAt.toISOString(),
+    detectedAt: thirdDegradedStart.toISOString(),
+  });
   await out("✓ tracking_integrity_failure@1 triggered");
   await out("✓ Deployment v42 correlated");
-  await out(`✓ Exposure during detection estimated at ${formatMoneyMinor(DEMO_STORY.exposureDuringDetectionMinor)}`);
+  await out(
+    `✓ Exposure during detection estimated at ${formatMoneyRangeMinor(
+      exposureModel.beforeDetectionMinor.lowMinor,
+      exposureModel.beforeDetectionMinor.highMinor,
+    )}`,
+  );
   await out("✓ Incident persisted with versioned evidence");
   await timelinePause(options?.instant, 2000);
 

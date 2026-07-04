@@ -5,7 +5,6 @@ CatchDrift detects when tracking breaks during active campaign spend, estimates 
 ## Submission in 30 seconds
 
 - Live URL: https://catchdrift.media/
-- Railway URL: https://catchdrift-web-production.up.railway.app
 - Repository: https://github.com/dev-dominick/catchdrift
 - Demo path: homepage -> run live replay -> incident appears active -> recovery verified on incident page
 
@@ -119,6 +118,7 @@ Runtime details:
 - Normal ingestion uses durable queued jobs and a worker.
 - Contest demo replay processes only its isolated demo jobs inline without relying on a separately scheduled worker.
 - Both paths use the same persisted evaluation and incident logic.
+- Technical deployment note: Railway serves the production origin behind the custom domain.
 
 ## Safety boundaries
 

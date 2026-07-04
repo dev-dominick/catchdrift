@@ -1017,12 +1017,21 @@ export async function countPendingJobs(workspaceId?: string): Promise<number> {
 
 export async function listExceptionQueue(workspaceSlug = DEMO_WORKSPACE_SLUG) {
   return query(
-    `select i.id, i.severity, i.confidence, i.status, i.detected_at,
+    `select i.id, i.severity, i.confidence, i.status, i.detected_at, i.recovered_at,
             i.exposure_low_minor, i.exposure_high_minor, i.currency,
-            c.name as campaign_name, i.rule_id
+            c.name as campaign_name, i.rule_id,
+            deployment.deployed_at as deployment_at
      from incidents i
      join campaigns c on c.id = i.campaign_id
      join workspaces w on w.id = i.workspace_id
+     left join lateral (
+       select e.evidence_json #>> '{candidate,deployed_at}' as deployed_at
+       from incident_evidence e
+       where e.incident_id = i.id
+         and e.evidence_type = 'deployment'
+       order by e.created_at asc
+       limit 1
+     ) deployment on true
      where w.slug = $1
      order by case i.status
        when 'detected' then 1

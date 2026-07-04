@@ -430,7 +430,8 @@ test("integration status summaries render and technical source details are colla
   await expect(page.getByText("Data mode", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Simulation status", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Live connector", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Not configured", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Simulated evidence fresh", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Not connected", { exact: true }).first()).toBeVisible();
 });
 
 test("canonical business values stay consistent across homepage, inbox, and incident detail", async ({ page }) => {
@@ -452,7 +453,8 @@ test("canonical business values stay consistent across homepage, inbox, and inci
   expect(runState.status).not.toBe("failed");
 
   await page.goto("/incidents");
-  await expect(page.getByText("Exposure before detection: $230-$310/hour")).toBeVisible();
+  await expect(page.getByText("Exposure before detection: $38-$52")).toBeVisible();
+  await expect(page.getByText("Measured window: deployment to detection (10 min)")).toBeVisible();
 
   await page.getByRole("link", { name: "View evidence" }).first().click();
   await expect(page.getByRole("heading", { name: /Tracking failure detected after deployment/i })).toBeVisible();

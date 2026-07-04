@@ -1,24 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_SCENARIO, DEMO_STORY } from "@/lib/constants";
+import {
+  DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR,
+  deriveExposureModel,
+} from "@/lib/presentation-contract";
 
 describe("demo scenario canonical values", () => {
   it("keeps customer-facing values aligned with legacy story fields", () => {
     expect(DEMO_SCENARIO.detectionDurationMinutes).toBe(DEMO_STORY.detectionMinutes);
-    expect(DEMO_SCENARIO.exposureAtDetectionMinor).toBe(DEMO_STORY.exposureDuringDetectionMinor);
-    expect(DEMO_SCENARIO.potentialDailyExposureMinor).toBe(DEMO_STORY.potentialDailyExposureMinor);
+    expect(DEMO_SCENARIO.exposureRatePerHourMinor).toEqual(DEMO_STORY.exposureRatePerHourMinor);
     expect(DEMO_SCENARIO.deploymentIdentifier).toBe(DEMO_STORY.deploymentId);
     expect(DEMO_SCENARIO.correctiveDeploymentIdentifier).toBe(DEMO_STORY.correctiveDeploymentId);
   });
 
-  it("defines deterministic staged exposure progression", () => {
-    const progression = [
-      DEMO_SCENARIO.stagedExposureMinor.healthy,
-      DEMO_SCENARIO.stagedExposureMinor.degradation,
-      DEMO_SCENARIO.stagedExposureMinor.confirmation,
-      DEMO_SCENARIO.stagedExposureMinor.detected,
-    ];
+  it("derives deterministic exposure values from the canonical hourly range", () => {
+    const model = deriveExposureModel({
+      lowPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.low,
+      highPerHourMinor: DEFAULT_EXPOSURE_RATE_PER_HOUR_MINOR.high,
+      deployedAt: "2026-07-04T12:15:00.000Z",
+      detectedAt: "2026-07-04T12:25:00.000Z",
+    });
 
-    expect(progression).toEqual([0, 16000, 32000, 64000]);
-    expect(progression[3]).toBe(DEMO_SCENARIO.exposureAtDetectionMinor);
+    expect(model.beforeDetectionMinor).toEqual({ lowMinor: 3833, highMinor: 5167 });
+    expect(model.dailyMinor).toEqual({ lowMinor: 552000, highMinor: 744000 });
   });
 });

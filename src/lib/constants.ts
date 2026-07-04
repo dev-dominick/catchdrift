@@ -60,12 +60,14 @@ export const DEMO_SCENARIO = {
   campaignName: DEMO_CAMPAIGN_NAME,
   trafficSource: "Meta",
   spendPerHourMinor: 90000,
-  potentialDailyExposureMinor: 384000,
-  exposureAtDetectionMinor: 64000,
+  exposureRatePerHourMinor: {
+    low: 23000,
+    high: 31000,
+  },
   attributionDeclinePercent: 25,
   sessionDeclinePercent: 18,
   conversionDeclinePercent: 82,
-  detectionDurationMinutes: 14,
+  detectionDurationMinutes: 10,
   recoveryWindowCount: 3,
   deploymentIdentifier: "v42",
   correctiveDeploymentIdentifier: "v43",
@@ -76,20 +78,12 @@ export const DEMO_SCENARIO = {
     "Verify click_id forwarding in landing-page redirects and confirm attribution payload integrity after deployment v42.",
   finalRecoveryStatement:
     "Revenue leak contained. CatchDrift verified recovery across three consecutive evaluation windows.",
-  stagedExposureMinor: {
-    healthy: 0,
-    degradation: 16000,
-    confirmation: 32000,
-    detected: 64000,
-  },
 } as const;
 
 export const DEMO_STORY = {
   spendPerHourMinor: 90000,
   detectionMinutes: DEMO_SCENARIO.detectionDurationMinutes,
-  exposureDuringDetectionMinor: DEMO_SCENARIO.exposureAtDetectionMinor,
-  delayedDiscoveryExposureMinor: 384000,
-  potentialDailyExposureMinor: DEMO_SCENARIO.potentialDailyExposureMinor,
+  exposureRatePerHourMinor: DEMO_SCENARIO.exposureRatePerHourMinor,
   campaignsMonitored: 1,
   conversionDeclinePercent: DEMO_SCENARIO.conversionDeclinePercent,
   attributionDeclinePercent: DEMO_SCENARIO.attributionDeclinePercent,

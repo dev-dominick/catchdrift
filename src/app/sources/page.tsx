@@ -23,7 +23,7 @@ export default async function SourcesPage() {
         </section>
         <section className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
           <p className="font-semibold">Live integrations</p>
-          <p className="mt-1">Live connector not configured in this demonstration. Ad-platform, analytics, deployment, and affiliate-provider feeds are outside this controlled environment.</p>
+          <p className="mt-1">Live connector not connected in this demonstration. Ad-platform, analytics, deployment, and affiliate-provider feeds are outside this controlled environment.</p>
         </section>
       </div>
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { exposureLabel } from "@/lib/format";
+import { exposureLabel, formatMoneyRangeMinor } from "@/lib/format";
 import { DEMO_SCENARIO } from "@/lib/constants";
-import { PRESENTATION_COPY } from "@/lib/presentation-contract";
+import { deriveLifecycleExposureDisplay, PRESENTATION_COPY } from "@/lib/presentation-contract";
 
 type ExceptionItem = {
   id: string;
@@ -9,6 +9,8 @@ type ExceptionItem = {
   confidence: string;
   status: string;
   detected_at: string;
+  recovered_at: string | null;
+  deployment_at: string | null;
   exposure_low_minor: number | null;
   exposure_high_minor: number | null;
   currency: string;
@@ -82,6 +84,14 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
               <ul className="space-y-3">
                 {items.map((incident) => {
                   const statusLabel = incident.status === "acknowledged" ? "investigating" : incident.status;
+                  const lifecycleExposure = deriveLifecycleExposureDisplay({
+                    lowPerHourMinor: incident.exposure_low_minor,
+                    highPerHourMinor: incident.exposure_high_minor,
+                    deployedAt: incident.deployment_at,
+                    detectedAt: incident.detected_at,
+                    recoveredAt: incident.recovered_at,
+                    status: incident.status,
+                  });
 
                   return (
                     <li key={incident.id} className="rounded-lg border border-slate-200 p-3">
@@ -97,8 +107,19 @@ export function ExceptionQueue({ incidents }: { incidents: ExceptionItem[] }) {
                         {incident.campaign_name} · {DEMO_SCENARIO.trafficSource}
                       </p>
                       <p className="mt-1 text-sm text-slate-700">
-                        {PRESENTATION_COPY.exposureLabels.beforeDetection}: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}
+                        {lifecycleExposure?.label ?? "Exposure window"}: {lifecycleExposure
+                          ? formatMoneyRangeMinor(
+                              lifecycleExposure.rangeMinor.lowMinor,
+                              lifecycleExposure.rangeMinor.highMinor,
+                              incident.currency,
+                            )
+                          : "-"}
                       </p>
+                      {lifecycleExposure ? (
+                        <p className="mt-1 text-xs text-slate-600">
+                          Measured window: {lifecycleExposure.windowLabel} ({lifecycleExposure.durationMinutes} min)
+                        </p>
+                      ) : null}
                       <p className="mt-1 text-sm text-slate-700">Likely cause: {DEMO_SCENARIO.rootCauseSummary}</p>
                       <p className="mt-1 text-sm text-slate-700">
                         Exposure rate: {exposureLabel(incident.exposure_low_minor, incident.exposure_high_minor, incident.currency)}

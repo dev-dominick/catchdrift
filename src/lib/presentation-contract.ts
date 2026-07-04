@@ -1,4 +1,3 @@
-import { differenceInMinutes } from "date-fns";
 import { addMinutes } from "date-fns";
 
 export const PRESENTATION_COPY = {
@@ -17,10 +16,10 @@ export const PRESENTATION_COPY = {
   },
   sourceStatusLabels: {
     dataMode: "Simulation",
-    liveConnectorNotConfigured: "Not configured",
-    simulationDataAvailable: "Data available",
-    simulationStale: "Stale simulated data",
-    simulationMissing: "No simulated data",
+    liveConnectorNotConfigured: "Not connected",
+    simulationDataAvailable: "Simulated evidence fresh",
+    simulationStale: "Simulated evidence stale",
+    simulationMissing: "No simulated evidence",
   },
 } as const;
 
@@ -47,6 +46,10 @@ export type TimelineInvariantResult = {
   valid: boolean;
   reason?: string;
 };
+
+function elapsedWholeMinutes(startAt: string, endAt: string): number {
+  return Math.max(0, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000));
+}
 
 export function validateTimelineOrdering(events: TimelineEventTimestamps): TimelineInvariantResult {
   const deployedAt = new Date(events.deploymentAt).getTime();
@@ -96,10 +99,7 @@ export function deriveExposureModel(params: {
   ninetyMinuteMinor: { lowMinor: number; highMinor: number };
   dailyMinor: { lowMinor: number; highMinor: number };
 } {
-  const detectionDurationMinutes = Math.max(
-    0,
-    differenceInMinutes(new Date(params.detectedAt), new Date(params.deployedAt)),
-  );
+  const detectionDurationMinutes = elapsedWholeMinutes(params.deployedAt, params.detectedAt);
 
   return {
     detectionDurationMinutes,
@@ -118,6 +118,49 @@ export function deriveExposureModel(params: {
       highPerHourMinor: params.highPerHourMinor,
       minutes: 24 * 60,
     }),
+  };
+}
+
+export function deriveLifecycleExposureDisplay(params: {
+  lowPerHourMinor: number | null | undefined;
+  highPerHourMinor: number | null | undefined;
+  deployedAt?: string | null;
+  detectedAt?: string | null;
+  recoveredAt?: string | null;
+  status?: string | null;
+}): {
+  label: string;
+  rangeMinor: { lowMinor: number; highMinor: number };
+  durationMinutes: number;
+  windowLabel: string;
+} | null {
+  if (params.lowPerHourMinor == null || params.highPerHourMinor == null || !params.deployedAt) {
+    return null;
+  }
+
+  const recovered = params.status === "recovered" || params.status === "resolved";
+  const endAt = recovered && params.recoveredAt ? params.recoveredAt : params.detectedAt;
+  if (!endAt) {
+    return null;
+  }
+
+  const deployedAt = new Date(params.deployedAt);
+  const exposureEndAt = new Date(endAt);
+  if (Number.isNaN(deployedAt.getTime()) || Number.isNaN(exposureEndAt.getTime())) {
+    return null;
+  }
+
+  const durationMinutes = Math.max(0, Math.round((exposureEndAt.getTime() - deployedAt.getTime()) / 60_000));
+
+  return {
+    label: recovered && params.recoveredAt ? "Exposure through recovery" : PRESENTATION_COPY.exposureLabels.beforeDetection,
+    rangeMinor: exposureRangeForMinutes({
+      lowPerHourMinor: params.lowPerHourMinor,
+      highPerHourMinor: params.highPerHourMinor,
+      minutes: durationMinutes,
+    }),
+    durationMinutes,
+    windowLabel: recovered && params.recoveredAt ? "deployment to recovery" : "deployment to detection",
   };
 }
 
