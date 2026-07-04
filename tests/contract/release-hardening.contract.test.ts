@@ -117,4 +117,39 @@ describe("release hardening contracts", () => {
     vi.doUnmock("@/demo/runtime");
     vi.doUnmock("@/infrastructure/logging/logger");
   });
+
+  it("replay start returns a safe conflict when an active incident blocks a new run", async () => {
+    vi.resetModules();
+
+    vi.doMock("@/demo/runtime", () => ({
+      attachDemoSessionCookie: (response: Response) => response,
+      getOrCreateDemoSession: () => ({ sessionId: "session-1", isNew: false }),
+      startReplayForSession: vi.fn(async () => ({
+        ok: false,
+        status: 409,
+        code: "DEMO_REPLAY_BLOCKED_BY_ACTIVE_INCIDENT",
+        message: "Replay is blocked while an active incident is unresolved. Reset the demo before starting another replay.",
+      })),
+    }));
+
+    vi.doMock("@/infrastructure/logging/logger", () => ({
+      logger: {
+        error: vi.fn(),
+      },
+    }));
+
+    const { POST } = await import("@/app/api/demo/replay/route");
+    const request = new NextRequest("http://localhost/api/demo/replay", { method: "POST" });
+
+    const response = await POST(request);
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.error.code).toBe("DEMO_REPLAY_BLOCKED_BY_ACTIVE_INCIDENT");
+    expect(String(json.error.message)).toContain("active incident is unresolved");
+    expect(JSON.stringify(json)).not.toMatch(/select |insert |update |from |postgres|DATABASE_URL/i);
+
+    vi.doUnmock("@/demo/runtime");
+    vi.doUnmock("@/infrastructure/logging/logger");
+  });
 });

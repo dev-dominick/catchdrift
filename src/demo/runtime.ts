@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runDemoReplay } from "@/demo/scenario";
 import { query, queryOne, withAdvisoryLock } from "@/db/sql";
+import { ACTIVE_INCIDENT_STATUSES, DEMO_WORKSPACE_SLUG } from "@/lib/constants";
 import { getEnv } from "@/lib/env";
 import { logger } from "@/infrastructure/logging/logger";
 
@@ -10,9 +11,13 @@ const SESSION_COOKIE = "catchdrift_demo_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const REPLAY_COOLDOWN_SECONDS = 8;
 const RESET_COOLDOWN_SECONDS = 5;
+const RUNNING_REPLAY_STALE_MINUTES = 5;
 
 type DemoOperation = "replay" | "reset";
 type DemoRunStatus = "running" | "completed" | "failed";
+type DemoOperationFailure = { ok: false; status: 409 | 429; code: string; message: string };
+type ReplayStartResult = { ok: true; runId: string } | DemoOperationFailure;
+type ResetResult = { ok: true } | DemoOperationFailure;
 
 type DemoRunRecord = {
   id: string;
@@ -43,6 +48,10 @@ async function incidentExists(incidentId: string): Promise<boolean> {
 
 function buildPublicErrorReference(): string {
   return `CD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function demoOperationFailure(status: 409 | 429, code: string, message: string): DemoOperationFailure {
+  return { ok: false, status, code, message };
 }
 
 function classifyStage(line: string): { stageKey: string; stageLabel: string; stageIndex: number } | null {
@@ -100,7 +109,8 @@ async function cleanupExpiredDemoRuns(): Promise<void> {
          updated_at = now()
      where operation = 'replay'
        and status = 'running'
-       and started_at < now() - interval '45 seconds'`,
+       and updated_at < now() - make_interval(mins => $1)`,
+    [RUNNING_REPLAY_STALE_MINUTES],
   );
 
   await query(`delete from demo_runs where expires_at <= now()`);
@@ -126,6 +136,19 @@ async function getRunningReplay() {
      where operation = 'replay' and status = 'running'
      order by started_at desc
      limit 1`,
+  );
+}
+
+async function getActiveDemoIncident() {
+  return queryOne<{ id: string; status: string }>(
+    `select i.id, i.status::text as status
+     from incidents i
+     join workspaces w on w.id = i.workspace_id
+     where w.slug = $1
+       and i.status = any($2::incident_status[])
+     order by i.detected_at desc
+     limit 1`,
+    [DEMO_WORKSPACE_SLUG, ACTIVE_INCIDENT_STATUSES],
   );
 }
 
@@ -234,31 +257,31 @@ async function markResetCompleted(sessionId: string): Promise<void> {
 export async function startReplayForSession(
   sessionId: string,
   options?: { forceFailure?: boolean },
-): Promise<
-  | { ok: true; runId: string }
-  | { ok: false; status: 409 | 429; code: string; message: string }
-> {
+): Promise<ReplayStartResult> {
   await cleanupExpiredDemoRuns();
 
   const result = await withAdvisoryLock(DEMO_LOCK_ID, async () => {
     const running = await getRunningReplay();
     if (running) {
-      return {
-        ok: false as const,
-        status: 409 as const,
-        code: running.session_id === sessionId ? "DEMO_REPLAY_ALREADY_RUNNING" : "DEMO_REPLAY_BUSY",
-        message: "Replay is already running. Retry after the active run reaches a terminal state.",
-      };
+      return demoOperationFailure(
+        409,
+        running.session_id === sessionId ? "DEMO_REPLAY_ALREADY_RUNNING" : "DEMO_REPLAY_BUSY",
+        "Replay is already running. Retry after the active run reaches a terminal state.",
+      );
+    }
+
+    const activeIncident = await getActiveDemoIncident();
+    if (activeIncident) {
+      return demoOperationFailure(
+        409,
+        "DEMO_REPLAY_BLOCKED_BY_ACTIVE_INCIDENT",
+        "Replay is blocked while an active incident is unresolved. Reset the demo before starting another replay.",
+      );
     }
 
     const throttled = await latestRunWithinCooldown(sessionId, "replay", REPLAY_COOLDOWN_SECONDS);
     if (throttled) {
-      return {
-        ok: false as const,
-        status: 429 as const,
-        code: "DEMO_REPLAY_THROTTLED",
-        message: "Replay requests are rate-limited. Retry shortly.",
-      };
+      return demoOperationFailure(429, "DEMO_REPLAY_THROTTLED", "Replay requests are rate-limited. Retry shortly.");
     }
 
     const runId = await insertDemoRun({
@@ -275,12 +298,7 @@ export async function startReplayForSession(
   });
 
   if (!result.acquired || !result.result) {
-    return {
-      ok: false,
-      status: 409,
-      code: "DEMO_REPLAY_LOCKED",
-      message: "Replay startup lock is busy. Retry shortly.",
-    };
+    return demoOperationFailure(409, "DEMO_REPLAY_LOCKED", "Replay startup lock is busy. Retry shortly.");
   }
 
   if (!result.result.ok) {
@@ -316,31 +334,22 @@ export async function startReplayForSession(
   return { ok: true, runId };
 }
 
-export async function resetForSession(sessionId: string, resetAction: () => Promise<void>): Promise<
-  | { ok: true }
-  | { ok: false; status: 409 | 429; code: string; message: string }
-> {
+export async function resetForSession(sessionId: string, resetAction: () => Promise<void>): Promise<ResetResult> {
   await cleanupExpiredDemoRuns();
 
   const result = await withAdvisoryLock(DEMO_LOCK_ID, async () => {
     const running = await getRunningReplay();
     if (running) {
-      return {
-        ok: false as const,
-        status: 409 as const,
-        code: running.session_id === sessionId ? "DEMO_RESET_BLOCKED_BY_ACTIVE_REPLAY" : "DEMO_RESET_BLOCKED_OTHER_SESSION",
-        message: "Reset is blocked while replay is active.",
-      };
+      return demoOperationFailure(
+        409,
+        running.session_id === sessionId ? "DEMO_RESET_BLOCKED_BY_ACTIVE_REPLAY" : "DEMO_RESET_BLOCKED_OTHER_SESSION",
+        "Reset is blocked while replay is active.",
+      );
     }
 
     const throttled = await latestRunWithinCooldown(sessionId, "reset", RESET_COOLDOWN_SECONDS);
     if (throttled) {
-      return {
-        ok: false as const,
-        status: 429 as const,
-        code: "DEMO_RESET_THROTTLED",
-        message: "Reset requests are rate-limited. Retry shortly.",
-      };
+      return demoOperationFailure(429, "DEMO_RESET_THROTTLED", "Reset requests are rate-limited. Retry shortly.");
     }
 
     await resetAction();
@@ -349,12 +358,7 @@ export async function resetForSession(sessionId: string, resetAction: () => Prom
   });
 
   if (!result.acquired || !result.result) {
-    return {
-      ok: false,
-      status: 409,
-      code: "DEMO_RESET_LOCKED",
-      message: "Reset lock is busy. Retry shortly.",
-    };
+    return demoOperationFailure(409, "DEMO_RESET_LOCKED", "Reset lock is busy. Retry shortly.");
   }
 
   return result.result;

@@ -16,6 +16,28 @@ type RunStatus = {
 };
 
 const REPLAY_CTA = "Run the AI-assisted tracking failure replay";
+const CANONICAL_INCIDENT_EXPECTATION = {
+  title: "Tracking failure detected after deployment v42",
+  failureDeploymentVersion: "v42",
+  releaseDiffBefore: "Before: /apply?click_id={{click_id}}",
+  releaseDiffAfter: "After:  /apply",
+  requiredRecoveryIntervals: 3,
+  activeStatusLabels: ["Active", "Acknowledged", "Investigating"],
+} as const;
+
+function parseConversionFall(summaryText: string): { before: number; after: number } {
+  const conversionFall = summaryText.match(/fell from (\d+) to (\d+)/i);
+  expect(conversionFall, summaryText).not.toBeNull();
+
+  return {
+    before: Number(conversionFall?.[1] ?? 0),
+    after: Number(conversionFall?.[2] ?? 0),
+  };
+}
+
+function parseStrongestDeployment(summaryText: string): string | null {
+  return summaryText.match(/strongest related change was deployment (v\d+)/i)?.[1] ?? null;
+}
 
 async function resetDemoForParity(page: Page): Promise<void> {
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -60,9 +82,9 @@ function collectFailures(page: Page) {
       return;
     }
 
-      if (errorText.includes("ERR_ABORTED") && /_next\/static\/chunks\//i.test(url)) {
-        return;
-      }
+    if (errorText.includes("ERR_ABORTED") && /_next\/static\/chunks\//i.test(url)) {
+      return;
+    }
 
     if (/analytics|doubleclick|google-analytics|gtag|collect|cdn-cgi\/rum/i.test(url)) {
       return;
@@ -209,6 +231,65 @@ async function waitForIncidentDetailReady(page: Page): Promise<void> {
   await expect(detailHeading.or(briefHeading)).toBeVisible();
 }
 
+async function assertIncidentEvidenceConsistent(page: Page): Promise<void> {
+  await waitForIncidentDetailReady(page);
+  await expect(page.getByRole("heading", { name: CANONICAL_INCIDENT_EXPECTATION.title })).toBeVisible();
+
+  const summaryText =
+    (await page
+      .getByText(/Paid traffic continued at .* attributed conversions fell from \d+ to \d+/)
+      .first()
+      .textContent()) ?? "";
+  const conversionFall = parseConversionFall(summaryText);
+  expect(conversionFall.before, summaryText).toBeGreaterThan(conversionFall.after);
+
+  expect(parseStrongestDeployment(summaryText), summaryText).toBe(CANONICAL_INCIDENT_EXPECTATION.failureDeploymentVersion);
+
+  const releaseDiff = (await page.locator("pre").first().textContent()) ?? "";
+  expect(releaseDiff).toContain(CANONICAL_INCIDENT_EXPECTATION.releaseDiffBefore);
+  expect(releaseDiff).toContain(CANONICAL_INCIDENT_EXPECTATION.releaseDiffAfter);
+
+  const statusText =
+    (await page
+      .locator("header")
+      .getByText(/Active|Acknowledged|Investigating|Recovered|Resolved/)
+      .first()
+      .textContent()) ?? "";
+  const activeStatus = CANONICAL_INCIDENT_EXPECTATION.activeStatusLabels.includes(
+    statusText.trim() as (typeof CANONICAL_INCIDENT_EXPECTATION.activeStatusLabels)[number],
+  );
+  const completedAllRecoveryIntervals =
+    (await page.getByText(`Completed recovery intervals: ${CANONICAL_INCIDENT_EXPECTATION.requiredRecoveryIntervals}`).count()) > 0;
+  const missingRecoveryTimestamp = (await page.getByText("Recovery timestamp: Not yet recovered").count()) > 0;
+
+  expect(activeStatus && completedAllRecoveryIntervals).toBe(false);
+  expect(completedAllRecoveryIntervals && missingRecoveryTimestamp).toBe(false);
+
+  await page.getByText("View technical evidence").click();
+  await expect(page.getByText("Timeline invariant: valid")).toBeVisible();
+}
+
+async function assertEveryInboxIncidentConsistent(page: Page): Promise<void> {
+  await page.goto("/incidents", { waitUntil: "domcontentloaded" });
+
+  const links = page.getByRole("link", { name: "View evidence" });
+  const count = await links.count();
+  expect(count).toBeGreaterThan(0);
+
+  const incidentPaths = new Set<string>();
+  for (let index = 0; index < count; index += 1) {
+    const href = await links.nth(index).getAttribute("href");
+    if (href) {
+      incidentPaths.add(href);
+    }
+  }
+
+  for (const incidentPath of incidentPaths) {
+    await page.goto(incidentPath, { waitUntil: "domcontentloaded" });
+    await assertIncidentEvidenceConsistent(page);
+  }
+}
+
 test.describe("public production parity", () => {
   test.setTimeout(420_000);
 
@@ -283,9 +364,10 @@ test.describe("public production parity", () => {
     await page.goto("/incidents", { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Exposure through recovery: $134-$181")).toBeVisible();
     await expect(page.getByText("Measured window: deployment to recovery (35 min)")).toBeVisible();
+    await assertEveryInboxIncidentConsistent(page);
 
     await page.goto("/sources", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Demo environment and connectors" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Demo environment and connectors" })).toBeVisible();
     await expect(page.getByText("Data mode: deterministic replay.")).toBeVisible();
     await expect(page.getByText("Production connectors", { exact: true })).toBeVisible();
     await expect(page.getByText("Ad-platform, analytics, deployment, and affiliate-provider feeds are intentionally not attached to this public demo.")).toBeVisible();

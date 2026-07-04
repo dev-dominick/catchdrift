@@ -2,7 +2,7 @@ import "dotenv/config";
 import { expect, test, type Page } from "@playwright/test";
 import { ensureDemoWorkspaceAndCampaign, resetDemoWorkspace } from "../../src/domain/engine";
 import { query, queryOne } from "../../src/db/sql";
-import { DEMO_WORKSPACE_SLUG } from "../../src/lib/constants";
+import { DEMO_CURRENCY, DEMO_WORKSPACE_SLUG, RULE_ID, RULE_VERSION } from "../../src/lib/constants";
 
 const REPLAY_CTA = "Run the AI-assisted tracking failure replay";
 
@@ -371,6 +371,39 @@ test("concurrent replay and reset semantics are enforced", async ({ browser }) =
 
   await contextA.close();
   await contextB.close();
+});
+
+test("replay is blocked when an unresolved demo incident already exists", async ({ page }) => {
+  await page.goto("/");
+  await resetDemoViaApi(page);
+
+  try {
+    const { workspaceId, campaignId } = await ensureDemoWorkspaceAndCampaign();
+    await query(
+      `insert into incidents (
+        workspace_id,
+        campaign_id,
+        rule_id,
+        rule_version,
+        deduplication_key,
+        severity,
+        confidence,
+        status,
+        currency,
+        detected_at
+      ) values ($1, $2, $3, $4, $5, 'high', 'high', 'detected', $6, now())`,
+      [workspaceId, campaignId, RULE_ID, RULE_VERSION, `${campaignId}:${RULE_ID}:active`, DEMO_CURRENCY],
+    );
+
+    const response = await page.request.post("/api/demo/replay");
+    const body = (await response.json()) as { error?: { code?: string; message?: string } };
+
+    expect(response.status()).toBe(409);
+    expect(body.error?.code).toBe("DEMO_REPLAY_BLOCKED_BY_ACTIVE_INCIDENT");
+    expect(body.error?.message).toContain("active incident is unresolved");
+  } finally {
+    await resetDemoViaApi(page);
+  }
 });
 
 test("safe public replay failure hides internals", async ({ page }) => {
